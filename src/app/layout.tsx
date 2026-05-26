@@ -32,7 +32,8 @@ export const metadata: Metadata = {
     nocache: true,
   },
   icons: {
-    icon: '/favicon.ico',
+    icon: '/icon.jpeg',
+    apple: '/icon.jpeg',
   },
 };
 
