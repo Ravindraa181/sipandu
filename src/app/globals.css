@@ -1,26 +1,193 @@
-@import "tailwindcss";
+/**
+ * globals.css — Tailwind directives + CSS variables shadcn/ui +
+ *               token spesifik SiPandu.
+ *
+ * Variabel `--*` di-define di sini agar shadcn/ui (Button, Card, dll.)
+ * yang memakai `hsl(var(--primary))` tetap berjalan. Token brand SiPandu
+ * (--navy, --blue, dst.) sudah di-register di tailwind.config.ts.
+ *
+ * Mockup memakai font-size base 13px → set di body (selaras dengan
+ * tailwind fontSize.base override).
+ */
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+/* ────────────────────────────────────────────────────────────────────
+ *  shadcn/ui — Light theme (default)
+ *  Dibutuhkan oleh komponen shadcn agar warna primer/border/accent kerja.
+ * ──────────────────────────────────────────────────────────────────── */
 
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* SiPandu navy diadaptasi sebagai primary shadcn */
+    --primary: 213 53% 25%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 213 76% 51%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 220 13% 91%;
+    --input: 220 13% 91%;
+    --ring: 213 76% 51%;
+
+    --radius: 0.5rem; /* 8px → setara mockup */
+  }
+
+  /* Tidak ada dark mode dalam scope skripsi v1 — tetap di-define agar
+   * Tailwind 'darkMode: ["class"]' tidak gagal compile bila dipakai. */
+  .dark {
+    --background: 222 47% 11%;
+    --foreground: 0 0% 100%;
+    --card: 222 47% 11%;
+    --card-foreground: 0 0% 100%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 0 0% 100%;
+    --primary: 213 76% 51%;
+    --primary-foreground: 0 0% 100%;
+    --secondary: 217 33% 17%;
+    --secondary-foreground: 0 0% 100%;
+    --muted: 217 33% 17%;
+    --muted-foreground: 215 20% 65%;
+    --accent: 217 33% 17%;
+    --accent-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 217 33% 17%;
+    --input: 217 33% 17%;
+    --ring: 213 76% 51%;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+/* ────────────────────────────────────────────────────────────────────
+ *  Base reset
+ * ──────────────────────────────────────────────────────────────────── */
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    @apply bg-sipandu-bg text-foreground;
+    font-feature-settings: 'rlig' 1, 'calt' 1, 'tnum' 1;
+    /* Mockup memakai font-size 13px sebagai base; sudah di-set
+     * di tailwind.config.ts (fontSize.base = 13px) namun perkuat
+     * di sini agar inherit ke elemen tanpa class Tailwind. */
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight text-foreground;
+  }
+
+  /* Numeric input — hilangkan spinner */
+  input[type='number']::-webkit-outer-spin-button,
+  input[type='number']::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  input[type='number'] {
+    -moz-appearance: textfield;
+  }
+
+  /* Scrollbar tipis (sesuai sidebar mockup) */
+  *::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  *::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 4px;
+  }
+  *::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.25);
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────────
+ *  Komponen utilitas — di-pakai di banyak halaman
+ * ──────────────────────────────────────────────────────────────────── */
+
+@layer components {
+  /* Card default sesuai mockup */
+  .sipandu-card {
+    @apply rounded-md border border-sipandu-border bg-sipandu-surface p-4 shadow-card;
+  }
+
+  /* Heading halaman 17px/700 (mockup §8.2) */
+  .sipandu-page-title {
+    @apply text-xl font-bold text-foreground;
+  }
+
+  /* Section title 13px/700 (mockup §8.2) */
+  .sipandu-section-title {
+    @apply text-base font-bold text-foreground;
+  }
+
+  /* Label form 11px/600 */
+  .sipandu-label {
+    @apply text-xs font-semibold text-muted-foreground;
+  }
+
+  /* Caption muted 10-11px/400 */
+  .sipandu-caption {
+    @apply text-2xs font-normal text-muted-foreground;
+  }
+
+  /* Mono untuk NIS/NIP/output fuzzy */
+  .sipandu-mono {
+    @apply font-mono;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────────────
+ *  Print stylesheet — untuk halaman Hasil Penilaian (W6/A7)
+ *  Saat user print laporan via browser, sembunyikan sidebar/header.
+ * ──────────────────────────────────────────────────────────────────── */
+
+@media print {
+  body {
+    background: #fff !important;
+    font-size: 11px;
+  }
+  /* Sidebar & header — sembunyikan saat print */
+  aside,
+  header[data-sipandu='topheader'] {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
 }
