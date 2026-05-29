@@ -116,18 +116,6 @@ interface ActiveRulesJson {
   output_set?: string;
 }
 
-interface FuzzificationJson {
-  x1?: { low: number; medium: number; high: number };
-  x2?: { low: number; medium: number; high: number };
-  x3?: { low: number; medium: number; high: number };
-}
-
-interface AggregationJson {
-  perlu_pembinaan?: number;
-  cukup?: number;
-  baik?: number;
-  sangat_baik?: number;
-}
 
 async function loadDetail(enrollmentId: string): Promise<PageData | null> {
   const assignment = await getAssignmentContext();
@@ -151,11 +139,14 @@ async function loadDetail(enrollmentId: string): Promise<PageData | null> {
   };
 
   // ── 1. Skor terkini ──────────────────────────────────────────────
+  // CATATAN: kolom yang ada di DB: x1,x2,raw_x2,x3,z_star,category,
+  //          alpha_pp,alpha_c,alpha_b,alpha_sb,active_rules
+  //          (fuzzification & aggregation TIDAK ada → jangan di-select)
   const { data: scoreRow } = await supabase
     .from('behavior_final_scores')
     .select(
       `x1, x2, raw_x2, x3, z_star, category,
-       fuzzification, active_rules, aggregation`,
+       alpha_pp, alpha_c, alpha_b, alpha_sb, active_rules`,
     )
     .eq('enrollment_id', enrollmentId)
     .maybeSingle();
@@ -167,9 +158,11 @@ async function loadDetail(enrollmentId: string): Promise<PageData | null> {
     x3: number | null;
     z_star: number | null;
     category: CategoryType | null;
-    fuzzification: FuzzificationJson | null;
+    alpha_pp: number | null;
+    alpha_c: number | null;
+    alpha_b: number | null;
+    alpha_sb: number | null;
     active_rules: ActiveRulesJson[] | null;
-    aggregation: AggregationJson | null;
   } | null;
 
   // ── 2. Catatan wali kelas ────────────────────────────────────────
@@ -372,21 +365,16 @@ async function loadDetail(enrollmentId: string): Promise<PageData | null> {
     x3: score?.x3 ?? null,
     zScore: score?.z_star ?? null,
     category: score?.category ?? null,
-    fuzzification: score?.fuzzification ?? null
-      ? {
-          x1: score?.fuzzification?.x1 ?? { low: 0, medium: 0, high: 0 },
-          x2: score?.fuzzification?.x2 ?? { low: 0, medium: 0, high: 0 },
-          x3: score?.fuzzification?.x3 ?? { low: 0, medium: 0, high: 0 },
-        }
-      : null,
+    fuzzification: null, // kolom tidak disimpan di DB; tampilkan via active_rules
     activeRules,
     aggregation:
-      score?.aggregation
+      (score?.alpha_pp != null || score?.alpha_c != null ||
+       score?.alpha_b != null || score?.alpha_sb != null)
         ? {
-            perlu_pembinaan: score.aggregation.perlu_pembinaan ?? 0,
-            cukup: score.aggregation.cukup ?? 0,
-            baik: score.aggregation.baik ?? 0,
-            sangat_baik: score.aggregation.sangat_baik ?? 0,
+            perlu_pembinaan: score?.alpha_pp ?? 0,
+            cukup: score?.alpha_c ?? 0,
+            baik: score?.alpha_b ?? 0,
+            sangat_baik: score?.alpha_sb ?? 0,
           }
         : null,
     attendance,
