@@ -592,6 +592,76 @@ export async function resetUserPassword(userId: string, newPassword: string) {
   }
 }
 
+/**
+ * Hapus guru secara permanen dari auth.users (cascade ke profiles dan data terkait).
+ * Cegah penghapusan jika guru masih assign sebagai wali kelas aktif.
+ */
+export async function deleteTeacher(teacherId: string) {
+  try {
+    const auth = await checkAdminAuth();
+    if (!auth.ok) throw new Error(auth.error);
+
+    const parsed = z.string().uuid().parse(teacherId);
+    const admin = await createServiceRoleClient();
+
+    // Verifikasi role
+    const { data: profile } = await admin
+      .from('profiles')
+      .select('role, full_name')
+      .eq('id', parsed)
+      .single();
+
+    if (!profile || (profile as any).role !== 'teacher') {
+      throw new Error('Hanya akun guru yang bisa dihapus melalui halaman ini');
+    }
+
+    // Cek apakah guru masih jadi wali kelas di assignment aktif
+    const { data: activeAssignment } = await admin
+      .from('class_period_assignments')
+      .select('id, classes:class_id(name)')
+      .eq('homeroom_teacher_id', parsed)
+      .limit(1)
+      .maybeSingle();
+
+    if (activeAssignment) {
+      const cls = (activeAssignment as any).classes;
+      const clsName = cls?.name ?? 'suatu kelas';
+      throw new Error(
+        `Guru ini masih menjadi wali kelas ${clsName}. Lepas penugasan terlebih dahulu sebelum menghapus.`,
+      );
+    }
+
+    const { error: deleteErr } = await admin.auth.admin.deleteUser(parsed);
+    if (deleteErr) throw deleteErr;
+
+    revalidatePath('/admin/guru');
+    return { ok: true };
+  } catch (e) {
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : 'Gagal menghapus guru',
+    };
+  }
+}
+
+/**
+ * Shorthand untuk membuat akun guru — dipakai oleh ImportTeacherDialog.
+ */
+export async function createTeacher(input: {
+  nip: string;
+  fullName: string;
+  email: string;
+  password: string;
+}) {
+  return createUser({
+    email: input.email,
+    fullName: input.fullName,
+    nip: input.nip,
+    password: input.password || '12345678',
+    role: 'teacher',
+  });
+}
+
 // --- CLASS MANAGEMENT ---
 
 export async function createClass(rawInput: { name: string; gradeLevel: string }) {

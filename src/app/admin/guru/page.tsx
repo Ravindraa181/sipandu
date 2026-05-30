@@ -12,12 +12,10 @@
  * - TeacherTable (client) dengan filter, search, dan aksi per row
  */
 
-import { Upload } from 'lucide-react';
-
 import { createClient } from '@/lib/supabase/server';
-import { Button } from '@/components/ui/button';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { AddTeacherDialog } from './_components/AddTeacherDialog';
+import { ImportTeacherDialog } from './_components/ImportTeacherDialog';
 import { TeacherTable, type TeacherRow } from './_components/TeacherTable';
 import type {
   ClassOption,
@@ -158,9 +156,7 @@ export default async function AdminGuruPage() {
         actions={
           <>
             <AddTeacherDialog />
-            <Button variant="outline" className="gap-1.5" disabled>
-              <Upload className="h-3.5 w-3.5" aria-hidden /> Import Excel
-            </Button>
+            <ImportTeacherDialog />
           </>
         }
       />

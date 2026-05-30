@@ -20,7 +20,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 // PERBAIKAN: Ganti setTeacherActive menjadi setUserActive
-import { resetUserPassword, setUserActive } from '@/lib/actions/admin';
+import { deleteTeacher, resetUserPassword, setUserActive } from '@/lib/actions/admin';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import {
   AssignClassDialog,
@@ -77,6 +77,17 @@ export function TeacherTable({ rows, classes, periods }: TeacherTableProps) {
         toast.success(`Guru berhasil di${t.isActive ? 'nonaktifkan' : 'aktifkan'}`);
       } else {
         toast.error('Gagal mengubah status', { description: result.error });
+      }
+    });
+  };
+
+  const handleDelete = (t: TeacherRow) => {
+    startTransition(async () => {
+      const result = await deleteTeacher(t.id);
+      if (result.ok) {
+        toast.success(`Guru ${t.fullName} berhasil dihapus`);
+      } else {
+        toast.error('Gagal menghapus guru', { description: result.error });
       }
     });
   };
@@ -222,6 +233,24 @@ export function TeacherTable({ rows, classes, periods }: TeacherTableProps) {
                         variant={t.isActive ? 'destructive' : 'default'}
                         confirmLabel={t.isActive ? 'Ya, Nonaktifkan' : 'Ya, Aktifkan'}
                         onConfirm={() => handleToggleActive(t)}
+                      />
+
+                      <ConfirmDialog
+                        trigger={
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                            disabled={pending}
+                          >
+                            Hapus
+                          </Button>
+                        }
+                        title={`Hapus permanen ${t.fullName}?`}
+                        description="Semua data akun guru ini akan dihapus secara permanen dan tidak dapat dikembalikan. Guru yang masih menjadi wali kelas aktif tidak bisa dihapus."
+                        variant="destructive"
+                        confirmLabel="Ya, Hapus Permanen"
+                        onConfirm={() => handleDelete(t)}
                       />
                     </div>
                   </td>
