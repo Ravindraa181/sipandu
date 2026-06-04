@@ -136,7 +136,7 @@ export function ImportTeacherDialog() {
         </Button>
       </DialogTrigger>
 
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-w-xl">
         <DialogHeader>
           <DialogTitle>Import Guru dari Excel</DialogTitle>
         </DialogHeader>
@@ -172,21 +172,30 @@ export function ImportTeacherDialog() {
               <p className="text-xs font-semibold text-muted-foreground">
                 Preview: {rows.length} baris siap diimport
               </p>
-              <div className="max-h-40 overflow-y-auto rounded-md border border-sipandu-border">
-                <table className="w-full border-collapse text-xs">
-                  <thead>
-                    <tr className="border-b bg-gray-50">
-                      <th className="px-2 py-1.5 text-left font-semibold">NIP</th>
-                      <th className="px-2 py-1.5 text-left font-semibold">Nama</th>
-                      <th className="px-2 py-1.5 text-left font-semibold">Email</th>
+              <div className="max-h-44 overflow-y-auto rounded-md border border-sipandu-border">
+                <table className="w-full table-fixed border-collapse text-xs">
+                  <thead className="sticky top-0 bg-gray-100">
+                    <tr className="text-left">
+                      <th className="w-[30%] px-2.5 py-2 font-semibold">NIP</th>
+                      <th className="w-[32%] px-2.5 py-2 font-semibold">Nama</th>
+                      <th className="w-[38%] px-2.5 py-2 font-semibold">Email</th>
                     </tr>
                   </thead>
                   <tbody>
                     {rows.map((r, i) => (
-                      <tr key={i} className="border-b last:border-b-0">
-                        <td className="px-2 py-1">{r.nip}</td>
-                        <td className="px-2 py-1">{r.name}</td>
-                        <td className="px-2 py-1 text-muted-foreground">{r.email}</td>
+                      <tr key={i} className="border-t border-gray-100">
+                        <td className="truncate px-2.5 py-1.5 font-mono" title={r.nip}>
+                          {r.nip}
+                        </td>
+                        <td className="truncate px-2.5 py-1.5" title={r.name}>
+                          {r.name}
+                        </td>
+                        <td
+                          className="truncate px-2.5 py-1.5 text-muted-foreground"
+                          title={r.email}
+                        >
+                          {r.email}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

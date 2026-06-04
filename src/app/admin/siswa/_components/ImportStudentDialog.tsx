@@ -242,27 +242,40 @@ export function ImportStudentDialog() {
                 )}
               </div>
               <div className="max-h-48 overflow-y-auto rounded-md border border-sipandu-border text-xs">
-                <table className="w-full border-collapse">
+                <table className="w-full table-fixed border-collapse">
                   <thead className="sticky top-0 bg-gray-100">
-                    <tr>
-                      <th className="px-2 py-1.5 text-left font-semibold">NISN</th>
-                      <th className="px-2 py-1.5 text-left font-semibold">Nama</th>
-                      <th className="px-2 py-1.5 text-left font-semibold">Email</th>
-                      <th className="px-2 py-1.5 text-left font-semibold">L/P</th>
-                      <th className="px-2 py-1.5 text-left font-semibold">Status</th>
+                    <tr className="text-left">
+                      <th className="w-[18%] px-2.5 py-2 font-semibold">NISN</th>
+                      <th className="w-[22%] px-2.5 py-2 font-semibold">Nama</th>
+                      <th className="w-[30%] px-2.5 py-2 font-semibold">Email</th>
+                      <th className="w-[8%] px-2.5 py-2 text-center font-semibold">L/P</th>
+                      <th className="w-[22%] px-2.5 py-2 font-semibold">Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {parsedRows.map((r, i) => (
-                      <tr key={i} className={r.validationError ? 'bg-red-50' : ''}>
-                        <td className="px-2 py-1 font-mono">{r.nisn}</td>
-                        <td className="px-2 py-1">{r.fullName}</td>
-                        <td className="px-2 py-1">{r.email}</td>
-                        <td className="px-2 py-1">{r.gender}</td>
-                        <td className="px-2 py-1">
+                      <tr
+                        key={i}
+                        className={`border-t border-gray-100 align-top ${r.validationError ? 'bg-red-50' : ''}`}
+                      >
+                        <td className="truncate px-2.5 py-1.5 font-mono" title={r.nisn}>
+                          {r.nisn}
+                        </td>
+                        <td className="truncate px-2.5 py-1.5" title={r.fullName}>
+                          {r.fullName}
+                        </td>
+                        <td
+                          className="truncate px-2.5 py-1.5 text-muted-foreground"
+                          title={r.email}
+                        >
+                          {r.email}
+                        </td>
+                        <td className="px-2.5 py-1.5 text-center">{r.gender}</td>
+                        <td className="px-2.5 py-1.5">
                           {r.validationError ? (
-                            <span className="flex items-center gap-1 text-status-err">
-                              <AlertCircle className="h-3 w-3" /> {r.validationError}
+                            <span className="flex items-start gap-1 leading-tight text-status-err">
+                              <AlertCircle className="mt-0.5 h-3 w-3 shrink-0" />
+                              <span>{r.validationError}</span>
                             </span>
                           ) : (
                             <span className="text-green-700">✓ OK</span>
@@ -281,24 +294,31 @@ export function ImportStudentDialog() {
             <div className="space-y-1.5">
               <p className="text-xs font-semibold text-foreground">Hasil import:</p>
               <div className="max-h-56 overflow-y-auto rounded-md border border-sipandu-border text-xs">
-                <table className="w-full border-collapse">
+                <table className="w-full table-fixed border-collapse">
                   <thead className="sticky top-0 bg-gray-100">
-                    <tr>
-                      <th className="px-2 py-1.5 text-left font-semibold">NISN</th>
-                      <th className="px-2 py-1.5 text-left font-semibold">Nama</th>
-                      <th className="px-2 py-1.5 text-left font-semibold">Status</th>
+                    <tr className="text-left">
+                      <th className="w-[24%] px-2.5 py-2 font-semibold">NISN</th>
+                      <th className="w-[30%] px-2.5 py-2 font-semibold">Nama</th>
+                      <th className="w-[46%] px-2.5 py-2 font-semibold">Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {results.map((r, i) => (
-                      <tr key={i} className={r.status === 'error' ? 'bg-red-50' : 'bg-green-50'}>
-                        <td className="px-2 py-1 font-mono">{r.nisn}</td>
-                        <td className="px-2 py-1">{r.fullName}</td>
-                        <td className="px-2 py-1">
+                      <tr
+                        key={i}
+                        className={`border-t border-gray-100 align-top ${r.status === 'error' ? 'bg-red-50' : 'bg-green-50'}`}
+                      >
+                        <td className="truncate px-2.5 py-1.5 font-mono" title={r.nisn}>
+                          {r.nisn}
+                        </td>
+                        <td className="truncate px-2.5 py-1.5" title={r.fullName}>
+                          {r.fullName}
+                        </td>
+                        <td className="px-2.5 py-1.5">
                           {r.status === 'success' ? (
                             <span className="text-green-700">✓ Berhasil</span>
                           ) : (
-                            <span className="text-status-err">✗ {r.message}</span>
+                            <span className="leading-tight text-status-err">✗ {r.message}</span>
                           )}
                         </td>
                       </tr>
