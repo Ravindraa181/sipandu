@@ -40,6 +40,7 @@ import { StudentDetailTabs } from './_components/StudentDetailTabs';
 import { TeacherNoteForm } from './_components/TeacherNoteForm';
 import { FuzzyDetailAccordion } from './_components/FuzzyDetailAccordion';
 import { AspectBreakdown } from './_components/AspectBreakdown';
+import { getAspectLabelMap } from '@/lib/peer-review/getAspects';
 import {
   HistoryBarChart,
   type HistoryBar,
@@ -104,6 +105,7 @@ interface PageData {
   pointTransactions: PointTxRow[];
   peerAspects: PeerReviewAspects | null;
   peerReviewerCount: number;
+  aspectLabels: Record<string, string>;
   peerSessionStatus: 'not_started' | 'active' | 'closed';
   history: HistoryBar[];
 }
@@ -381,6 +383,7 @@ async function loadDetail(enrollmentId: string): Promise<PageData | null> {
     pointTransactions,
     peerAspects,
     peerReviewerCount,
+    aspectLabels: await getAspectLabelMap(),
     peerSessionStatus,
     history,
   };
@@ -706,6 +709,7 @@ export default async function StudentDetailPage({
           <AspectBreakdown
             aspects={data.peerAspects}
             reviewerCount={data.peerReviewerCount}
+            labels={data.aspectLabels}
           />
         ) : (
           <p className="rounded-md border border-sipandu-border bg-gray-50 py-6 text-center text-sm italic text-muted-foreground">

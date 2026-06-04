@@ -37,7 +37,7 @@ import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils/cn';
-import { ASPECT_LABELS, PEER_REVIEW_ASPECTS } from '@/constants';
+import { PEER_REVIEW_ASPECTS } from '@/constants';
 import { submitPeerReviewRating } from '@/lib/actions/student';
 import { AspectRatingButtons } from './AspectRatingButtons';
 
@@ -52,6 +52,11 @@ export interface PeerReviewFormProps {
    * Digunakan untuk pre-fill form saat siswa ingin mengedit nilai.
    */
   initialSubmittedScores?: Record<string, [number, number, number, number, number]>;
+  /**
+   * 5 aspek (label + deskripsi) dari DB, terurut kanonik. Default ke
+   * konstanta PEER_REVIEW_ASPECTS bila tidak diberikan.
+   */
+  aspects?: readonly { key: string; label: string; description: string }[];
 }
 
 /** Skor 5-tuple per reviewee. 0 = belum diisi. */
@@ -66,6 +71,7 @@ export function PeerReviewForm({
   reviewees,
   initialSubmittedIds,
   initialSubmittedScores = {},
+  aspects = PEER_REVIEW_ASPECTS,
 }: PeerReviewFormProps) {
   const router = useRouter();
   const totalReviewees = reviewees.length;
@@ -277,7 +283,7 @@ export function PeerReviewForm({
         </div>
 
         {/* 5 aspek */}
-        {PEER_REVIEW_ASPECTS.map((aspect, idx) => (
+        {aspects.map((aspect, idx) => (
           <div
             key={aspect.key}
             className="mb-3 rounded-lg border border-sipandu-border p-4"
@@ -313,14 +319,13 @@ export function PeerReviewForm({
             </span>
           ) : (
             currentScores.map((s, i) => {
-              const aspectKey =
-                PEER_REVIEW_ASPECTS[i]?.key ?? 'courtesy';
+              const aspectLabel = aspects[i]?.label ?? `Aspek ${i + 1}`;
               return (
                 <span key={i}>
                   {i > 0 && (
                     <span className="text-muted-foreground"> | </span>
                   )}
-                  <strong>{ASPECT_LABELS[aspectKey]}:</strong>{' '}
+                  <strong>{aspectLabel}:</strong>{' '}
                   {s > 0 ? s : '—'}
                 </span>
               );

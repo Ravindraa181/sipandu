@@ -1130,3 +1130,50 @@ export async function updateFuzzyRuleOutput(rawInput: {
     return { ok: false, error: error.message || 'Gagal memperbarui aturan' };
   }
 }
+
+// --- PEER ASSESSMENT ASPECTS ---
+
+const updateAspectSchema = z.object({
+  aspectKey: z.enum([
+    'courtesy',
+    'cooperation',
+    'empathy',
+    'honesty',
+    'responsibility',
+  ]),
+  label: z.string().min(3, 'Label minimal 3 karakter').max(100),
+  description: z.string().min(5, 'Deskripsi minimal 5 karakter').max(500),
+});
+
+/**
+ * Perbarui label & deskripsi satu aspek peer assessment.
+ * Hanya admin. Kunci (aspect_key) & jumlah aspek TIDAK bisa diubah —
+ * hanya teks yang ditampilkan ke siswa.
+ */
+export async function updatePeerReviewAspect(
+  rawInput: z.infer<typeof updateAspectSchema>,
+) {
+  try {
+    const auth = await checkAdminAuth();
+    if (!auth.ok) throw new Error(auth.error);
+
+    const parsed = updateAspectSchema.parse(rawInput);
+    const admin = await createServiceRoleClient();
+
+    const { error } = await admin
+      .from('peer_review_aspects')
+      .update({
+        label: parsed.label,
+        description: parsed.description,
+        updated_by: auth.user?.id ?? null,
+      } as any)
+      .eq('aspect_key', parsed.aspectKey);
+
+    if (error) throw error;
+
+    revalidatePath((ROUTES as any).adminAspek ?? '/admin/aspek-peer-review');
+    return { ok: true };
+  } catch (error: any) {
+    return { ok: false, error: error.message || 'Gagal memperbarui aspek' };
+  }
+}

@@ -25,6 +25,7 @@ BEGIN
   DROP TABLE IF EXISTS public.behavior_final_scores CASCADE;
   DROP TABLE IF EXISTS public.fuzzy_rules CASCADE;
   DROP TABLE IF EXISTS public.fuzzy_configurations CASCADE;
+  DROP TABLE IF EXISTS public.peer_review_aspects CASCADE;
   DROP TABLE IF EXISTS public.student_x3_scores CASCADE;
   DROP TABLE IF EXISTS public.peer_review_progress CASCADE;
   DROP TABLE IF EXISTS public.peer_review_submissions CASCADE;
@@ -398,6 +399,24 @@ CREATE TABLE public.student_x3_scores (
 );
 
 -- ────────────────────────────────────────────────────────────────────────
+-- 2.15b peer_review_aspects  — label & deskripsi 5 aspek (dikelola admin)
+--   Kunci & jumlah aspek TETAP (terikat ke 5 kolom skor + trigger X3).
+-- ────────────────────────────────────────────────────────────────────────
+CREATE TABLE public.peer_review_aspects (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  aspect_key    VARCHAR(20)  NOT NULL UNIQUE,
+  label         VARCHAR(100) NOT NULL,
+  description   TEXT         NOT NULL,
+  display_order SMALLINT     NOT NULL,
+  updated_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+  updated_by    UUID         NULL REFERENCES public.profiles(id) ON DELETE SET NULL,
+
+  CONSTRAINT chk_aspect_key CHECK (
+    aspect_key IN ('courtesy','cooperation','empathy','honesty','responsibility')
+  )
+);
+
+-- ────────────────────────────────────────────────────────────────────────
 -- 2.16 fuzzy_configurations  — parameter himpunan fuzzy (X1/X2/X3/Z)
 -- ────────────────────────────────────────────────────────────────────────
 CREATE TABLE public.fuzzy_configurations (
@@ -498,6 +517,7 @@ DECLARE
     'violation_categories','reward_categories',
     'monthly_attendance','student_behavior_scores',
     'peer_review_sessions','peer_review_progress','student_x3_scores',
+    'peer_review_aspects',
     'behavior_final_scores','teacher_narrative_notes'
   ];
 BEGIN
@@ -709,6 +729,7 @@ ALTER TABLE public.peer_review_sessions         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.peer_review_submissions      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.peer_review_progress         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.student_x3_scores            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.peer_review_aspects          ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fuzzy_configurations         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.fuzzy_rules                  ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.behavior_final_scores        ENABLE ROW LEVEL SECURITY;
@@ -924,6 +945,12 @@ CREATE POLICY x3_select ON public.student_x3_scores
     )
   );
 CREATE POLICY x3_admin_all ON public.student_x3_scores
+  FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+-- ── peer_review_aspects ──────────────────────────────────────────────────
+CREATE POLICY aspects_select_authenticated ON public.peer_review_aspects
+  FOR SELECT USING (auth.uid() IS NOT NULL);
+CREATE POLICY aspects_admin_write ON public.peer_review_aspects
   FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
 
 -- ── fuzzy_configurations & fuzzy_rules ───────────────────────────────────
@@ -1160,6 +1187,22 @@ INSERT INTO public.reward_categories (name, point_addition, category_label, desc
   ('Hadir 100% sebulan penuh',          5, 'Kedisiplinan', 'Tidak ada absensi dalam satu bulan penuh'),
   ('Mewakili sekolah lomba provinsi',  12, 'Prestasi',     'Mewakili sekolah dalam lomba tingkat provinsi')
 ON CONFLICT (name) DO NOTHING;
+
+-- ────────────────────────────────────────────────────────────────────────
+-- 6.6 peer_review_aspects — 5 aspek default (label & deskripsi)
+-- ────────────────────────────────────────────────────────────────────────
+INSERT INTO public.peer_review_aspects (aspect_key, label, description, display_order) VALUES
+  ('courtesy',       'Kesantunan & Sopan Santun',
+   'Seberapa sopan siswa ini dalam berbicara dan bersikap kepada guru dan teman-teman?', 1),
+  ('cooperation',    'Gotong Royong & Kerja Sama',
+   'Seberapa aktif siswa ini dalam kerja kelompok dan membantu teman yang kesulitan?', 2),
+  ('empathy',        'Empati & Kepedulian',
+   'Seberapa peka siswa ini terhadap perasaan dan kondisi teman di sekitarnya?', 3),
+  ('honesty',        'Kejujuran',
+   'Seberapa jujur siswa ini dalam kegiatan belajar sehari-hari?', 4),
+  ('responsibility', 'Tanggung Jawab',
+   'Seberapa bertanggung jawab siswa ini dengan tugas, kewajiban, dan janjinya?', 5)
+ON CONFLICT (aspect_key) DO NOTHING;
 
 
 -- ═══════════════════════════════════════════════════════════════════════════

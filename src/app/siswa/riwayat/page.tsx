@@ -21,8 +21,8 @@ import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { getStudentContext } from '@/lib/student/getStudentContext';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { CategoryBadge } from '@/components/shared/CategoryBadge';
+import { getAspectLabelMap } from '@/lib/peer-review/getAspects';
 import {
-  ASPECT_LABELS,
   MIN_ATTENDANCE_PERCENT,
   MONTHS,
   ROUTES,
@@ -418,11 +418,12 @@ async function loadData(searchParams: SearchParams): Promise<PageData> {
         sums.honesty      += r.score_honesty;
         sums.responsibility += r.score_responsibility;
       }
+      const aspectLabels = await getAspectLabelMap();
       aspectAggregates = ASPECT_KEYS.map((key) => {
         const avg = sums[key] / reviewerCount;
         return {
           key,
-          label: ASPECT_LABELS[key as keyof typeof ASPECT_LABELS],
+          label: aspectLabels[key],
           average: avg,
           percent: (avg / 5) * 100,
         };

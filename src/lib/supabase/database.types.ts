@@ -646,6 +646,44 @@ export type Database = {
           },
         ]
       }
+      peer_review_aspects: {
+        Row: {
+          aspect_key: string
+          description: string
+          display_order: number
+          id: string
+          label: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          aspect_key: string
+          description: string
+          display_order: number
+          id?: string
+          label: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          aspect_key?: string
+          description?: string
+          display_order?: number
+          id?: string
+          label?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "peer_review_aspects_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string

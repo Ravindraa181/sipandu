@@ -21,6 +21,7 @@ import { Calendar, CircleX, CheckCircle2, Users } from 'lucide-react';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { getStudentContext } from '@/lib/student/getStudentContext';
+import { getPeerReviewAspects } from '@/lib/peer-review/getAspects';
 import { deterministicShuffle } from '@/lib/student/shuffle';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { ROUTES } from '@/constants';
@@ -135,6 +136,9 @@ async function loadData() {
     daysRemaining = Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
   }
 
+  // Label & deskripsi 5 aspek (dapat dikonfigurasi admin; fallback konstanta).
+  const aspects = await getPeerReviewAspects();
+
   return {
     mode: 'form' as const,
     sessionId,
@@ -145,6 +149,7 @@ async function loadData() {
     reviewees: shuffledReviewees,
     initialSubmittedIds,
     initialSubmittedScores,
+    aspects,
   };
 }
 
@@ -233,6 +238,7 @@ export default async function PeerReviewPage() {
           reviewees={data.reviewees}
           initialSubmittedIds={data.initialSubmittedIds}
           initialSubmittedScores={data.initialSubmittedScores}
+          aspects={data.aspects}
         />
       )}
     </div>

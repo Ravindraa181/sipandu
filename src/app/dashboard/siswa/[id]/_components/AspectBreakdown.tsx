@@ -13,6 +13,8 @@ export interface AspectBreakdownProps {
   /** Rata-rata aspek (1-5). */
   aspects: PeerReviewAspects;
   reviewerCount: number;
+  /** Label aspek dari DB (key → label). Default ke ASPECT_LABELS. */
+  labels?: Record<string, string>;
 }
 
 const ASPECT_KEYS: Array<keyof PeerReviewAspects> = [
@@ -26,6 +28,7 @@ const ASPECT_KEYS: Array<keyof PeerReviewAspects> = [
 export function AspectBreakdown({
   aspects,
   reviewerCount,
+  labels = ASPECT_LABELS,
 }: AspectBreakdownProps) {
   // Total = average × 20 (skala 1-5 → 0-100)
   const total =
@@ -43,7 +46,7 @@ export function AspectBreakdown({
         return (
           <div key={key} className="flex items-center gap-2">
             <div className="w-32 text-xs text-foreground">
-              {ASPECT_LABELS[key]}
+              {labels[key] ?? ASPECT_LABELS[key]}
             </div>
             <div className="h-2.5 flex-1 overflow-hidden rounded-sm bg-gray-200">
               <div
