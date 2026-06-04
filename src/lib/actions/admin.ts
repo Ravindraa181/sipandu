@@ -1171,7 +1171,7 @@ export async function updatePeerReviewAspect(
 
     if (error) throw error;
 
-    revalidatePath((ROUTES as any).adminAspek ?? '/admin/aspek-peer-review');
+    revalidatePath((ROUTES as any).adminKategori ?? '/admin/kategori-poin');
     return { ok: true };
   } catch (error: any) {
     return { ok: false, error: error.message || 'Gagal memperbarui aspek' };

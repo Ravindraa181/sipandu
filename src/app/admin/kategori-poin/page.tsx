@@ -9,12 +9,12 @@
  * Per tab: tabel CRUD dengan modal tambah/edit + konfirmasi hapus.
  */
 
-import { Info } from 'lucide-react';
-
 import { createClient } from '@/lib/supabase/server';
 import { PageHeader } from '@/components/shared/PageHeader';
+import { getPeerReviewAspects } from '@/lib/peer-review/getAspects';
 import { CategoryTabs } from './_components/CategoryTabs';
 import type { CategoryRow } from './_components/CategoryTable';
+import type { AspectItem } from './_components/AspectEditorList';
 
 export const metadata = {
   title: 'Kategori Poin — Admin SiPandu',
@@ -23,6 +23,7 @@ export const metadata = {
 interface PageData {
   violations: CategoryRow[];
   rewards: CategoryRow[];
+  aspects: AspectItem[];
 }
 
 async function loadData(): Promise<PageData> {
@@ -78,25 +79,23 @@ async function loadData(): Promise<PageData> {
       description: r.description,
     }));
 
-  return { violations, rewards };
+  const aspects = await getPeerReviewAspects();
+
+  return { violations, rewards, aspects };
 }
 
 export default async function AdminKategoriPoinPage() {
-  const { violations, rewards } = await loadData();
+  const { violations, rewards, aspects } = await loadData();
 
   return (
     <div className="space-y-3">
-      <PageHeader title="Kategori poin (Pelanggaran & Reward)" />
+      <PageHeader title="Kategori poin (Pelanggaran, Reward & Peer Assessment)" />
 
-      <div className="flex items-start gap-2 rounded-md border-l-4 border-sipandu-blue bg-blue-50 px-3 py-2.5 text-sm text-sipandu-blue-deep">
-        <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" aria-hidden />
-        <p>
-          Kategori yang dihapus akan dinonaktifkan (soft delete). Riwayat
-          transaksi yang sudah ada tetap tersimpan untuk audit trail.
-        </p>
-      </div>
-
-      <CategoryTabs violations={violations} rewards={rewards} />
+      <CategoryTabs
+        violations={violations}
+        rewards={rewards}
+        aspects={aspects}
+      />
     </div>
   );
 }

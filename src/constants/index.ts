@@ -274,7 +274,6 @@ export const ROUTES = {
   adminFuzzy: '/admin/konfigurasi-fuzzy',
   adminLaporan: '/admin/laporan',
   adminKategori: '/admin/kategori-poin',
-  adminAspek: '/admin/aspek-peer-review',
 
   // Teacher — path harus match dengan nama folder di src/app/dashboard/*
   teacherHome: '/dashboard',

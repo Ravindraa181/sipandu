@@ -1,16 +1,16 @@
 'use client';
 
 /**
- * @file admin/aspek-peer-review/_components/AspectEditorList.tsx
- * @description Daftar editor 5 aspek peer assessment. Tiap aspek dapat
- *              diedit label & deskripsinya, lalu disimpan per kartu.
+ * @file admin/kategori-poin/_components/AspectEditorList.tsx
+ * @description Editor 5 aspek peer assessment (tab di halaman Kategori Poin).
+ *              Tiap aspek dapat diedit nama & deskripsinya, disimpan per kartu.
  *
- *  Tombol "Simpan" hanya aktif bila ada perubahan. Kunci aspek (key)
- *  ditampilkan read-only sebagai penanda — tidak dapat diubah.
+ *  Peer assessment = sejenis poin, namun diinput oleh siswa terhadap
+ *  teman sekelasnya (skala 1–5 per aspek).
  */
 
 import { useState, useTransition } from 'react';
-import { Loader2, Save, RotateCcw } from 'lucide-react';
+import { Info, Loader2, Save, RotateCcw } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -33,6 +33,15 @@ export interface AspectEditorListProps {
 export function AspectEditorList({ aspects }: AspectEditorListProps) {
   return (
     <div className="space-y-3">
+      <div className="flex items-start gap-2 rounded-md border-l-4 border-sipandu-blue bg-blue-50 px-3 py-2.5 text-sm text-sipandu-blue-deep">
+        <Info className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" aria-hidden />
+        <p>
+          Setiap siswa menilai teman sekelasnya pada <strong>5 aspek</strong>{' '}
+          berikut (skala 1–5). Ubah <strong>nama</strong> dan{' '}
+          <strong>deskripsi</strong> tiap aspek agar sesuai kebutuhan sekolah.
+        </p>
+      </div>
+
       {aspects.map((aspect, i) => (
         <AspectCard key={aspect.key} index={i + 1} aspect={aspect} />
       ))}
@@ -77,7 +86,6 @@ function AspectCard({ index, aspect }: { index: number; aspect: AspectItem }) {
 
       if (result.ok) {
         toast.success(`Aspek "${label.trim()}" berhasil diperbarui`);
-        // Perbarui baseline agar tombol nonaktif sampai ada perubahan baru.
         setSaved({ label: label.trim(), description: description.trim() });
       } else {
         toast.error('Gagal menyimpan', { description: result.error });
@@ -91,10 +99,9 @@ function AspectCard({ index, aspect }: { index: number; aspect: AspectItem }) {
         <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-sipandu-blue text-xs font-bold text-white">
           {index}
         </span>
-        <span className="rounded bg-gray-100 px-2 py-0.5 font-mono text-2xs text-muted-foreground">
-          {aspect.key}
+        <span className="text-sm font-semibold text-foreground">
+          Aspek {index}
         </span>
-        <span className="text-2xs text-muted-foreground">(kunci tetap)</span>
       </div>
 
       <div className="space-y-3">

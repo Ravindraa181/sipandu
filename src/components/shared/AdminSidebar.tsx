@@ -2,7 +2,7 @@
 
 /**
  * @file components/shared/AdminSidebar.tsx
- * @description Sidebar 220px untuk modul Admin (9 menu).
+ * @description Sidebar 220px untuk modul Admin (8 menu).
  *              Sesuai mockup `_context/sipandu_admin.html` — bg navy
  *              `#1E3A5F`, active state biru `#2D7DD2`.
  *
@@ -22,7 +22,6 @@ import {
   SlidersHorizontal,
   BarChart3,
   Tag,
-  ClipboardList,
   LogOut,
   ChartArea,
 } from 'lucide-react';
@@ -38,7 +37,7 @@ interface NavItem {
   Icon: typeof LayoutDashboard;
 }
 
-/** 9 menu admin. */
+/** 8 menu admin. */
 const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Dashboard', href: ROUTES.adminHome, Icon: LayoutDashboard },
   { label: 'Manajemen Periode', href: ROUTES.adminPeriode, Icon: Calendar },
@@ -48,7 +47,6 @@ const NAV_ITEMS: readonly NavItem[] = [
   { label: 'Konfigurasi Fuzzy', href: ROUTES.adminFuzzy, Icon: SlidersHorizontal },
   { label: 'Laporan Global', href: ROUTES.adminLaporan, Icon: BarChart3 },
   { label: 'Kategori Poin', href: ROUTES.adminKategori, Icon: Tag },
-  { label: 'Aspek Peer Assessment', href: ROUTES.adminAspek, Icon: ClipboardList },
 ] as const;
 
 export interface AdminSidebarProps {
