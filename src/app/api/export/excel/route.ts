@@ -32,7 +32,7 @@ const querySchema = z.object({
  * ──────────────────────────────────────────────────────────────────── */
 
 type Row = {
-  nis:      string;
+  nisn:     string;
   name:     string;
   x1:       number | null;
   x2:       number | null;
@@ -61,11 +61,11 @@ async function fetchClassBlock(
 ): Promise<ClassBlock> {
   const { data: enrolls } = await admin
     .from('student_class_enrollments')
-    .select('id, student:student_id (nis, full_name)')
+    .select('id, student:student_id (nisn, full_name)')
     .eq('class_period_assignment_id', assignmentId)
     .eq('status', 'active');
 
-  type EnrollRow = { id: string; student: { nis: string | null; full_name: string } | null };
+  type EnrollRow = { id: string; student: { nisn: string | null; full_name: string } | null };
   const enrollList = ((enrolls ?? []) as unknown as EnrollRow[]).filter((e) => e.student);
   const enrollmentIds = enrollList.map((e) => e.id);
 
@@ -85,7 +85,7 @@ async function fetchClassBlock(
     .map((e) => {
       const s = scoreMap.get(e.id);
       return {
-        nis:      e.student!.nis ?? '—',
+        nisn:     e.student!.nisn ?? '—',
         name:     e.student!.full_name,
         x1:       s?.x1    ?? null,
         x2:       s?.x2    ?? null,
@@ -115,10 +115,10 @@ function buildClassSheet(
     [`Periode: ${periodName}`],
     [`Wali Kelas: ${block.homeroomName}`],
     [],
-    ['NIS', 'Nama', 'Absensi (%)', 'Poin Perilaku', 'Nilai Sejawat', 'Nilai Akhir', 'Kategori'],
+    ['NISN', 'Nama', 'Absensi (%)', 'Poin Perilaku', 'Nilai Sejawat', 'Nilai Akhir', 'Kategori'],
   ];
   const dataRows: (string | number)[][] = block.rows.map((r) => [
-    r.nis,
+    r.nisn,
     r.name,
     r.x1   !== null ? Number(r.x1.toFixed(2))   : '',
     r.x2   !== null ? Number(r.x2.toFixed(2))   : '',
@@ -262,7 +262,7 @@ export async function GET(req: NextRequest) {
         [`Periode: ${(period as any).name}`],
         [`Kepala Sekolah: ${principalName}`],
         [],
-        ['No', 'NIS', 'Nama', 'Kelas', 'Absensi (%)', 'Poin Perilaku', 'Nilai Sejawat', 'Nilai Akhir', 'Kategori'],
+        ['No', 'NISN', 'Nama', 'Kelas', 'Absensi (%)', 'Poin Perilaku', 'Nilai Sejawat', 'Nilai Akhir', 'Kategori'],
       ];
       const allStudents = blocks
         .flatMap((b) => b.rows.map((r) => ({ ...r, className: b.className })))
@@ -271,7 +271,7 @@ export async function GET(req: NextRequest) {
       allStudents.forEach((r, i) => {
         allRows.push([
           i + 1,
-          r.nis,
+          r.nisn,
           r.name,
           r.className,
           r.x1   !== null ? Number(r.x1.toFixed(2))    : '',

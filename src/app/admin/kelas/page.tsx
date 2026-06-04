@@ -81,7 +81,7 @@ async function loadData(): Promise<{
           const { data: enrollments } = await supabase
             .from('student_class_enrollments')
             .select(
-              `student:student_id (id, full_name, nis, gender)`,
+              `student:student_id (id, full_name, nisn, gender)`,
             )
             .eq('class_period_assignment_id', assignmentId) // PERBAIKAN: gunakan class_period_assignment_id
             .eq('status', 'active');
@@ -91,7 +91,7 @@ async function loadData(): Promise<{
               student: {
                 id: string;
                 full_name: string;
-                nis: string | null;
+                nisn: string | null;
                 gender: 'L' | 'P' | null;
               } | null;
             }>
@@ -99,7 +99,7 @@ async function loadData(): Promise<{
             .filter((e) => e.student !== null)
             .map((e) => ({
               id: e.student!.id,
-              nis: e.student!.nis ?? '—',
+              nisn: e.student!.nisn ?? '—',
               fullName: e.student!.full_name,
               gender: e.student!.gender,
             }));

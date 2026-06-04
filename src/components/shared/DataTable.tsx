@@ -15,7 +15,7 @@
  *
  * @example
  *   const columns: ColumnDef<Student>[] = [
- *     { id: 'nis', header: 'NIS', cell: (s) => <span>{s.nis}</span> },
+ *     { id: 'nisn', header: 'NISN', cell: (s) => <span>{s.nisn}</span> },
  *     { id: 'nm', header: 'Nama', cell: (s) => <strong>{s.fullName}</strong> },
  *   ];
  *   <DataTable columns={columns} data={rows} isLoading={loading} pageSize={10} />

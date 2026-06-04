@@ -30,7 +30,7 @@ import { DEFAULT_PAGE_SIZE } from '@/constants';
 
 export interface StudentTableRow {
   id: string;
-  nis: string;
+  nisn: string;
   fullName: string;
   className: string | null;
   isActive: boolean;
@@ -41,7 +41,7 @@ export interface StudentTableRow {
   detail: StudentDetail;
 }
 
-type SortKey = 'nis' | 'fullName' | 'zScore';
+type SortKey = 'nisn' | 'fullName' | 'zScore';
 type StatusFilter = 'all' | 'active' | 'inactive';
 
 export interface StudentTableProps {
@@ -76,7 +76,7 @@ export function StudentTable({ rows, classOptions, activePeriodExists }: Student
       result = result.filter(
         (r) =>
           r.fullName.toLowerCase().includes(q) ||
-          r.nis.toLowerCase().includes(q),
+          r.nisn.toLowerCase().includes(q),
       );
     }
     result = [...result].sort((a, b) => {
@@ -205,7 +205,7 @@ export function StudentTable({ rows, classOptions, activePeriodExists }: Student
             aria-hidden
           />
           <Input
-            placeholder="Cari nama atau NIS..."
+            placeholder="Cari nama atau NISN..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPageIndex(0); }}
             className="pl-8"
@@ -235,10 +235,10 @@ export function StudentTable({ rows, classOptions, activePeriodExists }: Student
                 <th className="px-3 py-2 text-xs font-semibold">
                   <button
                     type="button"
-                    onClick={() => toggleSort('nis')}
+                    onClick={() => toggleSort('nisn')}
                     className="flex items-center gap-1 hover:text-sipandu-blue"
                   >
-                    NIS <ArrowUpDown className="h-3 w-3" aria-hidden />
+                    NISN <ArrowUpDown className="h-3 w-3" aria-hidden />
                   </button>
                 </th>
                 <th className="px-3 py-2 text-xs font-semibold">
@@ -295,7 +295,7 @@ export function StudentTable({ rows, classOptions, activePeriodExists }: Student
                         />
                       </td>
                     )}
-                    <td className="px-3 py-2 font-mono text-xs">{s.nis}</td>
+                    <td className="px-3 py-2 font-mono text-xs">{s.nisn}</td>
                     <td className="px-3 py-2 font-medium text-foreground">
                       {s.fullName}
                     </td>

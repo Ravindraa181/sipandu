@@ -15,7 +15,7 @@ import { formatPercent, formatScore } from '@/lib/utils/format';
 export interface RankingRow {
   rank: number;
   studentId: string;
-  nis: string;
+  nisn: string;
   fullName: string;
   className: string;
   x1: number | null;
@@ -73,7 +73,7 @@ export function RankingTable({ rows }: RankingTableProps) {
                   # <ArrowUpDown className="h-3 w-3" aria-hidden />
                 </button>
               </th>
-              <th className="px-3 py-2 text-xs font-semibold">NIS</th>
+              <th className="px-3 py-2 text-xs font-semibold">NISN</th>
               <th className="px-3 py-2 text-xs font-semibold">
                 <button
                   type="button"
@@ -132,7 +132,7 @@ export function RankingTable({ rows }: RankingTableProps) {
                   <td className="px-3 py-1.5 text-center font-bold text-foreground">
                     {r.rank}
                   </td>
-                  <td className="px-3 py-1.5 font-mono text-xs">{r.nis}</td>
+                  <td className="px-3 py-1.5 font-mono text-xs">{r.nisn}</td>
                   <td className="px-3 py-1.5 font-medium text-foreground">
                     {r.fullName}
                   </td>

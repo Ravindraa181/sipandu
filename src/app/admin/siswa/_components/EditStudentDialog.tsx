@@ -3,7 +3,7 @@
 /**
  * @file admin/siswa/_components/EditStudentDialog.tsx
  * @description Dialog untuk mengedit data profil siswa:
- *              nama lengkap, NIS, email, dan jenis kelamin.
+ *              nama lengkap, NISN, email, dan jenis kelamin.
  *              Perubahan email akan diperbarui di auth.users sekaligus.
  */
 
@@ -36,7 +36,7 @@ import type { StudentDetail } from './StudentDetailDialog';
 
 const schema = z.object({
   fullName: z.string().min(2, 'Nama minimal 2 karakter'),
-  nis: z.string().min(1, 'NIS wajib diisi'),
+  nisn: z.string().regex(/^\d{10}$/, 'NISN harus 10 digit angka'),
   email: z.string().email('Format email tidak valid'),
   gender: z.enum(['L', 'P']).optional(),
 });
@@ -67,7 +67,7 @@ export function EditStudentDialog({
     resolver: zodResolver(schema),
     defaultValues: {
       fullName: student.fullName,
-      nis: student.nis,
+      nisn: student.nisn,
       email: student.email,
       gender: student.gender ?? undefined,
     },
@@ -78,7 +78,7 @@ export function EditStudentDialog({
     if (open) {
       reset({
         fullName: student.fullName,
-        nis: student.nis,
+        nisn: student.nisn,
         email: student.email,
         gender: student.gender ?? undefined,
       });
@@ -92,7 +92,7 @@ export function EditStudentDialog({
       const result = await updateStudent({
         studentId: student.id,
         fullName: values.fullName,
-        nis: values.nis,
+        nisn: values.nisn,
         email: values.email,
         gender: values.gender,
       });
@@ -132,19 +132,21 @@ export function EditStudentDialog({
             )}
           </div>
 
-          {/* NIS */}
+          {/* NISN */}
           <div className="space-y-1">
-            <Label htmlFor="edit-nis">
-              NIS <span className="text-status-err">*</span>
+            <Label htmlFor="edit-nisn">
+              NISN <span className="text-status-err">*</span>
             </Label>
             <Input
-              id="edit-nis"
-              placeholder="Nomor Induk Siswa"
-              {...register('nis')}
-              aria-invalid={Boolean(errors.nis)}
+              id="edit-nisn"
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="Nomor Induk Siswa Nasional (10 digit)"
+              {...register('nisn')}
+              aria-invalid={Boolean(errors.nisn)}
             />
-            {errors.nis && (
-              <p className="text-2xs text-status-err">{errors.nis.message}</p>
+            {errors.nisn && (
+              <p className="text-2xs text-status-err">{errors.nisn.message}</p>
             )}
           </div>
 

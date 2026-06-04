@@ -42,7 +42,7 @@ function formatDateID(d = new Date()): string {
  * ──────────────────────────────────────────────────────────────────── */
 
 type ScoreRow = {
-  nis:         string;
+  nisn:        string;
   name:        string;
   x1:          string;
   x2:          string;
@@ -83,11 +83,11 @@ async function fetchClassBlock(
 
   const { data: enrolls } = await admin
     .from('student_class_enrollments')
-    .select('id, student:student_id (nis, full_name)')
+    .select('id, student:student_id (nisn, full_name)')
     .eq('class_period_assignment_id', assignmentId)
     .eq('status', 'active');
 
-  type EnrollRow = { id: string; student: { nis: string | null; full_name: string } | null };
+  type EnrollRow = { id: string; student: { nisn: string | null; full_name: string } | null };
   const enrollList = ((enrolls ?? []) as unknown as EnrollRow[]).filter((e) => e.student);
   const enrollmentIds = enrollList.map((e) => e.id);
 
@@ -107,7 +107,7 @@ async function fetchClassBlock(
     .map((e) => {
       const s = scoreMap.get(e.id);
       return {
-        nis:         e.student!.nis ?? '—',
+        nisn:        e.student!.nisn ?? '—',
         name:        e.student!.full_name,
         x1:          fmt(s?.x1),
         x2:          fmt(s?.x2),
@@ -173,8 +173,8 @@ function appendClassSection(
   // Tabel siswa
   autoTable(doc, {
     startY: cursor,
-    head: [['No', 'NIS', 'Nama', 'Absensi (%)', 'Poin', 'Nilai Sejawat', 'Nilai Akhir', 'Kategori']],
-    body: block.rows.map((r, i) => [i+1, r.nis, r.name, r.x1, r.x2, r.x3, r.zStar, r.category]),
+    head: [['No', 'NISN', 'Nama', 'Absensi (%)', 'Poin', 'Nilai Sejawat', 'Nilai Akhir', 'Kategori']],
+    body: block.rows.map((r, i) => [i+1, r.nisn, r.name, r.x1, r.x2, r.x3, r.zStar, r.category]),
     styles:            { fontSize: 8, cellPadding: 3 },
     headStyles:        { fillColor: [30, 58, 95], textColor: 255, halign: 'center' },
     alternateRowStyles:{ fillColor: [243, 244, 246] },

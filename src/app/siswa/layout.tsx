@@ -37,10 +37,10 @@ export default async function SiswaLayout({
   if (!user) redirect(ROUTES.login);
 
   // ── 2. Cek role dan ambil identitas ────────────────────────────
-  // PERBAIKAN: Fetch langsung nis & full_name dari tabel profiles
+  // PERBAIKAN: Fetch langsung nisn & full_name dari tabel profiles
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, full_name, nis, is_active')
+    .select('role, full_name, nisn, is_active')
     .eq('id', user.id)
     .single();
 
@@ -51,7 +51,7 @@ export default async function SiswaLayout({
   }
 
   const fullName = profile.full_name;
-  const nis = profile.nis ?? '—';
+  const nisn = profile.nisn ?? '—';
 
   const ctx = await getStudentContext();
 
@@ -95,7 +95,7 @@ export default async function SiswaLayout({
       sidebar={
         <StudentSidebar
           userName={fullName}
-          nis={nis}
+          nisn={nisn}
           className={ctx.className}
           periodLabel={ctx.periodLabel}
           hasPeerReviewActive={hasPeerReviewActive}

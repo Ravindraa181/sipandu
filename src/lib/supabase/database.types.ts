@@ -656,7 +656,7 @@ export type Database = {
           id: string
           is_active: boolean
           nip: string | null
-          nis: string | null
+          nisn: string | null
           role: Database["public"]["Enums"]["user_role"]
           updated_at: string
         }
@@ -669,7 +669,7 @@ export type Database = {
           id: string
           is_active?: boolean
           nip?: string | null
-          nis?: string | null
+          nisn?: string | null
           role: Database["public"]["Enums"]["user_role"]
           updated_at?: string
         }
@@ -682,7 +682,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           nip?: string | null
-          nis?: string | null
+          nisn?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           updated_at?: string
         }

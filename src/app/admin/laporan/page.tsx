@@ -140,7 +140,7 @@ async function loadReport(searchParams: SearchParams): Promise<ReportData> {
     .select(
       `x1, x2, x3, z_star, category,
        enrollment:enrollment_id (
-         student:student_id (id, full_name, nis),
+         student:student_id (id, full_name, nisn),
          assignment:class_period_assignment_id (
            class:class_id (name)
          )
@@ -157,7 +157,7 @@ async function loadReport(searchParams: SearchParams): Promise<ReportData> {
     z_star: number | null;              // FIX: z_star
     category: CategoryType | null;
     enrollment: {
-      student: { id: string; full_name: string; nis: string | null } | null;
+      student: { id: string; full_name: string; nisn: string | null } | null;
       assignment: { class: { name: string } | null } | null;
     } | null;
   };
@@ -169,7 +169,7 @@ async function loadReport(searchParams: SearchParams): Promise<ReportData> {
     .filter((s) => s.enrollment?.student)
     .map((s) => ({
       studentId: s.enrollment!.student!.id,
-      nis: s.enrollment!.student!.nis ?? '—',
+      nisn: s.enrollment!.student!.nisn ?? '—',
       fullName: s.enrollment!.student!.full_name,
       className: s.enrollment!.assignment?.class?.name ?? '—',
       x1: s.x1,

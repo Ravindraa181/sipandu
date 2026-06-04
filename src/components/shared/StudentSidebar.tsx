@@ -41,8 +41,8 @@ const NAV_ITEMS: readonly NavItem[] = [
 export interface StudentSidebarProps {
   /** Nama lengkap siswa. */
   userName?: string;
-  /** NIS siswa. */
-  nis?: string;
+  /** NISN siswa (Nomor Induk Siswa Nasional). */
+  nisn?: string;
   /** Nama kelas, mis. "XI-A". */
   className?: string;
   /** Label periode aktif. */
@@ -53,7 +53,7 @@ export interface StudentSidebarProps {
 
 export function StudentSidebar({
   userName = 'Siswa',
-  nis,
+  nisn,
   className: classNameProp,
   periodLabel,
   hasPeerReviewActive,
@@ -155,9 +155,9 @@ export function StudentSidebar({
             <div className="truncate text-xs font-semibold text-white">
               {userName}
             </div>
-            {nis && (
+            {nisn && (
               <div className="truncate text-2xs text-sipandu-blue-light">
-                NIS: {nis}
+                NISN: {nisn}
               </div>
             )}
           </div>

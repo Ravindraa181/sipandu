@@ -21,7 +21,7 @@ export interface StudentContext {
   studentId: string;
   studentName: string;
   studentEmail: string;
-  nis: string;
+  nisn: string;
   gender: 'L' | 'P' | null;
   enrollmentId: string;
   assignmentId: string;
@@ -50,7 +50,7 @@ export async function getStudentContext(): Promise<StudentContext | null> {
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('id, role, full_name, email, nis, gender, is_active')
+    .select('id, role, full_name, email, nisn, gender, is_active')
     .eq('id', user.id)
     .single();
 
@@ -122,7 +122,7 @@ export async function getStudentContext(): Promise<StudentContext | null> {
     studentId: user.id,
     studentName: (profile.full_name as string) ?? 'Siswa',
     studentEmail: profile.email as string,
-    nis: (profile.nis as string | null) ?? '—',
+    nisn: (profile.nisn as string | null) ?? '—',
     gender: (profile.gender as 'L' | 'P' | null) ?? null,
     enrollmentId: enrollment.id as string,
     assignmentId: a.id,

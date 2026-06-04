@@ -26,7 +26,7 @@ async function loadData() {
 
   const { data: studentProfiles } = await supabase
     .from('profiles')
-    .select('id, nis, full_name, email, gender, is_active')
+    .select('id, nisn, full_name, email, gender, is_active')
     .eq('role', 'student')
     .order('full_name');
 
@@ -101,12 +101,12 @@ async function loadData() {
     }));
 
     const detail: StudentDetail = {
-      id: s.id, nis: s.nis ?? '—', fullName: s.full_name, email: s.email, gender: s.gender,
+      id: s.id, nisn: s.nisn ?? '—', fullName: s.full_name, email: s.email, gender: s.gender,
       isActive: s.is_active, currentClassName: enroll?.className ?? null, scoreHistory,
     };
 
     return {
-      id: s.id, nis: s.nis ?? '—', fullName: s.full_name, className: enroll?.className ?? null,
+      id: s.id, nisn: s.nisn ?? '—', fullName: s.full_name, className: enroll?.className ?? null,
       isActive: s.is_active, zScore: activeScore?.z_star ?? null, category: activeScore?.category ?? null,
       periodLabel: enroll ? (activePeriod?.name ?? null) : null, detail,
     };

@@ -15,7 +15,7 @@ import { TransferStudentDialog } from './TransferStudentDialog';
 
 export interface ClassStudent {
   id: string;
-  nis: string;
+  nisn: string;
   fullName: string;
   gender: 'L' | 'P' | null;
 }
@@ -116,7 +116,7 @@ export function ClassRow({
                           No
                         </th>
                         <th className="px-3 py-1.5 text-xs font-semibold">
-                          NIS
+                          NISN
                         </th>
                         <th className="px-3 py-1.5 text-xs font-semibold">
                           Nama Siswa
@@ -139,7 +139,7 @@ export function ClassRow({
                             {i + 1}
                           </td>
                           <td className="px-3 py-1.5 font-mono text-xs">
-                            {s.nis}
+                            {s.nisn}
                           </td>
                           <td className="px-3 py-1.5">{s.fullName}</td>
                           <td className="px-3 py-1.5 text-xs">

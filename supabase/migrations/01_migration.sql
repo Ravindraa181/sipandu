@@ -133,7 +133,7 @@ CREATE TABLE public.profiles (
   full_name       VARCHAR(150)            NOT NULL,
   -- atribut spesifik (NULL bila tidak relevan dengan role)
   nip             VARCHAR(18)             NULL UNIQUE,           -- guru
-  nis             VARCHAR(15)             NULL UNIQUE,           -- siswa
+  nisn            VARCHAR(10)             NULL UNIQUE,           -- siswa (Nomor Induk Siswa Nasional, 10 digit)
   gender          public.gender_type      NULL,                  -- siswa
   date_of_birth   DATE                    NULL,                  -- siswa
   is_active       BOOLEAN                 NOT NULL DEFAULT TRUE,
@@ -142,7 +142,7 @@ CREATE TABLE public.profiles (
 
   -- konsistensi role ↔ atribut
   CONSTRAINT chk_teacher_has_nip CHECK (role <> 'teacher' OR nip IS NOT NULL),
-  CONSTRAINT chk_student_has_nis CHECK (role <> 'student' OR nis IS NOT NULL)
+  CONSTRAINT chk_student_has_nisn CHECK (role <> 'student' OR nisn IS NOT NULL)
 );
 
 COMMENT ON TABLE public.profiles IS 'Profil pengguna; PK = auth.users.id (Supabase Auth)';

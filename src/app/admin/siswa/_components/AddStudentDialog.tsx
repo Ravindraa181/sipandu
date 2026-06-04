@@ -2,7 +2,7 @@
 
 /**
  * @file admin/siswa/_components/AddStudentDialog.tsx
- * @description Modal "Tambah Siswa Baru" — form NIS, nama, email, gender, password.
+ * @description Modal "Tambah Siswa Baru" — form NISN, nama, email, gender, password.
  */
 
 import { useState, useTransition } from 'react';
@@ -33,7 +33,7 @@ import {
 import { createUser } from '@/lib/actions/admin';
 
 const formSchema = z.object({
-  nis: z.string().min(4, 'Minimal 4 karakter').max(20),
+  nisn: z.string().regex(/^\d{10}$/, 'NISN harus 10 digit angka'),
   fullName: z.string().min(3, 'Minimal 3 karakter').max(150),
   email: z.string().email('Format email tidak valid'),
   gender: z.enum(['L', 'P'], { error: 'Pilih jenis kelamin' }),
@@ -47,7 +47,7 @@ export function AddStudentDialog() {
 
   const form = useForm<FormValues>({
     resolver: zodResolver(formSchema),
-    defaultValues: { nis: '', fullName: '', email: '', initialPassword: '' },
+    defaultValues: { nisn: '', fullName: '', email: '', initialPassword: '' },
   });
 
   function onSubmit(values: FormValues) {
@@ -55,7 +55,7 @@ export function AddStudentDialog() {
       const result = await createUser({
         email: values.email,
         fullName: values.fullName,
-        nis: values.nis,
+        nisn: values.nisn,
         gender: values.gender,
         password: values.initialPassword,
         role: 'student',
@@ -85,10 +85,16 @@ export function AddStudentDialog() {
 
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-3" noValidate>
           <div>
-            <Label htmlFor="nis">NIS</Label>
-            <Input id="nis" placeholder="12345" {...form.register('nis')} />
-            {form.formState.errors.nis && (
-              <p className="mt-1 text-2xs text-status-err">{form.formState.errors.nis.message}</p>
+            <Label htmlFor="nisn">NISN</Label>
+            <Input
+              id="nisn"
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="0012345678 (10 digit)"
+              {...form.register('nisn')}
+            />
+            {form.formState.errors.nisn && (
+              <p className="mt-1 text-2xs text-status-err">{form.formState.errors.nisn.message}</p>
             )}
           </div>
           <div>

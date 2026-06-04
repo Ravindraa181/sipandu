@@ -43,7 +43,7 @@ export type DataStatus = 'draft' | 'locked';
 /** Profil minimum siswa untuk ditampilkan di list/tabel. */
 export interface StudentProfile {
   id: string;
-  nis: string;
+  nisn: string;
   fullName: string;
   email: string;
   gender: 'L' | 'P' | null;

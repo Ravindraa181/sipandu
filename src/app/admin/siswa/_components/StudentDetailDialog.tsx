@@ -44,7 +44,7 @@ export interface StudentScoreHistoryRow {
 
 export interface StudentDetail {
   id: string;
-  nis: string;
+  nisn: string;
   fullName: string;
   email: string;
   gender: 'L' | 'P' | null;
@@ -136,8 +136,8 @@ export function StudentDetailDialog({
         {/* Info siswa */}
         <div className="grid grid-cols-2 gap-1.5 rounded-md bg-gray-50 p-2.5 text-sm">
           <div>
-            <span className="text-muted-foreground">NIS:</span>{' '}
-            <span className="font-mono text-xs">{student.nis}</span>
+            <span className="text-muted-foreground">NISN:</span>{' '}
+            <span className="font-mono text-xs">{student.nisn}</span>
           </div>
           <div>
             <span className="text-muted-foreground">Status:</span>{' '}

@@ -323,7 +323,7 @@ const createUserSchema = z.object({
   email: z.string().email(),
   fullName: z.string().min(3),
   nip: z.string().optional(),
-  nis: z.string().optional(),
+  nisn: z.string().optional(),
   gender: z.enum(['L', 'P']).optional(),
   password: z.string().min(6),
   role: z.enum(['teacher', 'student']),
@@ -381,7 +381,7 @@ export async function createUser(rawInput: z.infer<typeof createUserSchema>) {
       full_name: parsed.fullName,
       role: parsed.role,
       ...(parsed.nip ? { nip: parsed.nip } : {}),
-      ...(parsed.nis ? { nis: parsed.nis } : {}),
+      ...(parsed.nisn ? { nisn: parsed.nisn } : {}),
       ...(parsed.gender ? { gender: parsed.gender } : {}),
     } as any);
 
@@ -402,13 +402,13 @@ export async function createUser(rawInput: z.infer<typeof createUserSchema>) {
 const updateStudentSchema = z.object({
   studentId: z.string().uuid(),
   fullName: z.string().min(2, 'Nama minimal 2 karakter'),
-  nis: z.string().min(1, 'NIS wajib diisi'),
+  nisn: z.string().regex(/^\d{10}$/, 'NISN harus 10 digit angka'),
   email: z.string().email('Format email tidak valid'),
   gender: z.enum(['L', 'P']).optional(),
 });
 
 /**
- * Update data profil siswa (nama, NIS, email, gender).
+ * Update data profil siswa (nama, NISN, email, gender).
  * Jika email berubah, juga update di auth.users via Admin API.
  */
 export async function updateStudent(
@@ -448,7 +448,7 @@ export async function updateStudent(
       .from('profiles')
       .update({
         full_name: parsed.fullName,
-        nis: parsed.nis,
+        nisn: parsed.nisn,
         email: parsed.email,
         ...(parsed.gender ? { gender: parsed.gender } : {}),
       } as any)

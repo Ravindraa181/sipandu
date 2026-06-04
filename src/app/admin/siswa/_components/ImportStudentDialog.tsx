@@ -2,14 +2,25 @@
 
 /**
  * @file admin/siswa/_components/ImportStudentDialog.tsx
- * @description Import siswa massal via file Excel (.xlsx/.csv).
+ * @description Import siswa massal via file Excel (.xlsx/.xls).
  *
- * Format kolom Excel yang diharapkan (baris 1 = header):
- *   NIS | Nama Lengkap | Email | Jenis Kelamin (L/P) | Password Awal
+ * Format kolom Excel yang diharapkan (baris 1 = header, baris 2+ = data):
+ *   A: NISN  |  B: Nama Lengkap  |  C: Email  |  D: Jenis Kelamin (L/P)  |  E: Password Awal
+ *
+ * NISN = Nomor Induk Siswa Nasional (10 digit angka).
  */
 
 import { useRef, useState, useTransition } from 'react';
-import { Upload, FileSpreadsheet, X, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import {
+  Upload,
+  Download,
+  FileSpreadsheet,
+  X,
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+} from 'lucide-react';
+import * as XLSX from 'xlsx';
 import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
@@ -24,47 +35,45 @@ import {
 import { createUser } from '@/lib/actions/admin';
 
 interface ParsedRow {
-  nis: string;
+  nisn: string;
   fullName: string;
   email: string;
   gender: 'L' | 'P';
   password: string;
-  /** Error validasi sebelum dikirim */
+  /** Error validasi sebelum dikirim. */
   validationError?: string;
 }
 
 interface ImportResult {
-  nis: string;
+  nisn: string;
   fullName: string;
   status: 'success' | 'error';
   message?: string;
 }
 
-function parseCSV(text: string): ParsedRow[] {
-  const lines = text.trim().split('\n');
-  // Skip baris header
-  return lines.slice(1).map((line) => {
-    // Handle quoted fields
-    const cols = line.split(/,(?=(?:[^"]*"[^"]*")*[^"]*$)/).map((c) =>
-      c.trim().replace(/^"|"$/g, '')
-    );
-    const nis = cols[0] ?? '';
-    const fullName = cols[1] ?? '';
-    const email = cols[2] ?? '';
-    const genderRaw = (cols[3] ?? '').toUpperCase();
-    const password = cols[4] ?? '';
+/** Parse worksheet Excel (array-of-arrays) menjadi baris siswa tervalidasi. */
+function parseRows(rows: unknown[][]): ParsedRow[] {
+  return rows
+    .slice(1) // lewati baris header
+    .map((cols) => {
+      const nisn = cols[0] != null ? String(cols[0]).trim() : '';
+      const fullName = cols[1] != null ? String(cols[1]).trim() : '';
+      const email = cols[2] != null ? String(cols[2]).trim() : '';
+      const genderRaw = (cols[3] != null ? String(cols[3]).trim() : '').toUpperCase();
+      const password = cols[4] != null ? String(cols[4]).trim() : '';
 
-    const gender: 'L' | 'P' = genderRaw === 'P' ? 'P' : 'L';
-    let validationError: string | undefined;
+      const gender: 'L' | 'P' = genderRaw === 'P' ? 'P' : 'L';
+      let validationError: string | undefined;
 
-    if (!nis) validationError = 'NIS kosong';
-    else if (!fullName || fullName.length < 3) validationError = 'Nama terlalu pendek';
-    else if (!email.includes('@')) validationError = 'Email tidak valid';
-    else if (genderRaw !== 'L' && genderRaw !== 'P') validationError = 'Gender harus L atau P';
-    else if (!password || password.length < 8) validationError = 'Password minimal 8 karakter';
+      if (!/^\d{10}$/.test(nisn)) validationError = 'NISN harus 10 digit angka';
+      else if (!fullName || fullName.length < 3) validationError = 'Nama terlalu pendek';
+      else if (!email.includes('@')) validationError = 'Email tidak valid';
+      else if (genderRaw !== 'L' && genderRaw !== 'P') validationError = 'Gender harus L atau P';
+      else if (!password || password.length < 8) validationError = 'Password minimal 8 karakter';
 
-    return { nis, fullName, email, gender, password, validationError };
-  }).filter((r) => r.nis || r.fullName); // Skip baris kosong
+      return { nisn, fullName, email, gender, password, validationError };
+    })
+    .filter((r) => r.nisn || r.fullName); // buang baris kosong
 }
 
 export function ImportStudentDialog() {
@@ -81,13 +90,26 @@ export function ImportStudentDialog() {
 
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const text = ev.target?.result as string;
-      const rows = parseCSV(text);
-      setParsedRows(rows);
-      setResults([]);
-      setIsDone(false);
+      try {
+        const data = new Uint8Array(ev.target!.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1 });
+
+        const rows = parseRows(json as unknown[][]);
+        if (rows.length === 0) {
+          toast.error('File tidak memiliki data valid. Pastikan format sesuai template.');
+          return;
+        }
+
+        setParsedRows(rows);
+        setResults([]);
+        setIsDone(false);
+      } catch {
+        toast.error('Gagal membaca file. Pastikan format file adalah .xlsx atau .xls');
+      }
     };
-    reader.readAsText(file, 'UTF-8');
+    reader.readAsArrayBuffer(file);
   }
 
   function handleImport() {
@@ -98,7 +120,7 @@ export function ImportStudentDialog() {
       const importResults: ImportResult[] = [];
       for (const row of validRows) {
         const result = await createUser({
-          nis: row.nis,
+          nisn: row.nisn,
           fullName: row.fullName,
           email: row.email,
           gender: row.gender,
@@ -106,7 +128,7 @@ export function ImportStudentDialog() {
           role: 'student',
         });
         importResults.push({
-          nis: row.nis,
+          nisn: row.nisn,
           fullName: row.fullName,
           status: result.ok ? 'success' : 'error',
           message: result.ok ? undefined : result.error,
@@ -123,6 +145,17 @@ export function ImportStudentDialog() {
         toast.warning(`${successCount} berhasil, ${failCount} gagal`);
       }
     });
+  }
+
+  function handleDownloadTemplate() {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['NISN', 'Nama Lengkap', 'Email', 'Jenis Kelamin (L/P)', 'Password Awal'],
+      ['0012345678', 'Contoh Siswa', 'siswa@sman13bdg.sch.id', 'L', 'password123'],
+    ]);
+    ws['!cols'] = [{ wch: 14 }, { wch: 28 }, { wch: 32 }, { wch: 18 }, { wch: 16 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Template Siswa');
+    XLSX.writeFile(wb, 'template_import_siswa.xlsx');
   }
 
   function handleClose(o: boolean) {
@@ -148,33 +181,47 @@ export function ImportStudentDialog() {
 
       <DialogContent className="max-w-[600px]">
         <DialogHeader>
-          <DialogTitle>Import Siswa dari File</DialogTitle>
+          <DialogTitle>Import Siswa dari Excel</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Panduan format */}
-          <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
-            <p className="mb-1 font-semibold">Format file CSV (simpan Excel as CSV):</p>
-            <p className="font-mono">NIS, Nama Lengkap, Email, Jenis Kelamin (L/P), Password Awal</p>
-            <p className="mt-1 text-blue-600">Baris pertama = header (akan dilewati otomatis)</p>
+          {/* Panduan format + unduh template */}
+          <div className="flex items-center justify-between gap-3 rounded-md border border-blue-200 bg-blue-50 p-3 text-xs text-blue-800">
+            <div>
+              <p className="mb-1 font-semibold">Format kolom file Excel (.xlsx):</p>
+              <p className="font-mono">
+                NISN · Nama Lengkap · Email · Jenis Kelamin (L/P) · Password Awal
+              </p>
+              <p className="mt-1 text-blue-600">
+                Baris pertama = header (dilewati otomatis). NISN = 10 digit angka.
+              </p>
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 shrink-0 gap-1 text-xs"
+              onClick={handleDownloadTemplate}
+            >
+              <Download className="h-3 w-3" /> Template
+            </Button>
           </div>
 
           {/* Upload area */}
           {!isDone && (
             <div
-              className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-gray-300 p-6 hover:border-sipandu-blue hover:bg-blue-50/40 transition-colors"
+              className="flex cursor-pointer flex-col items-center justify-center gap-2 rounded-md border-2 border-dashed border-gray-300 p-6 transition-colors hover:border-sipandu-blue hover:bg-blue-50/40"
               onClick={() => fileRef.current?.click()}
             >
               <FileSpreadsheet className="h-8 w-8 text-muted-foreground" aria-hidden />
               <p className="text-sm text-muted-foreground">
                 {parsedRows.length > 0
                   ? `${parsedRows.length} baris terbaca dari file`
-                  : 'Klik untuk pilih file .csv'}
+                  : 'Klik untuk pilih file .xlsx / .xls'}
               </p>
               <input
                 ref={fileRef}
                 type="file"
-                accept=".csv,.txt"
+                accept=".xlsx,.xls"
                 className="hidden"
                 onChange={handleFileChange}
               />
@@ -198,7 +245,7 @@ export function ImportStudentDialog() {
                 <table className="w-full border-collapse">
                   <thead className="sticky top-0 bg-gray-100">
                     <tr>
-                      <th className="px-2 py-1.5 text-left font-semibold">NIS</th>
+                      <th className="px-2 py-1.5 text-left font-semibold">NISN</th>
                       <th className="px-2 py-1.5 text-left font-semibold">Nama</th>
                       <th className="px-2 py-1.5 text-left font-semibold">Email</th>
                       <th className="px-2 py-1.5 text-left font-semibold">L/P</th>
@@ -208,7 +255,7 @@ export function ImportStudentDialog() {
                   <tbody>
                     {parsedRows.map((r, i) => (
                       <tr key={i} className={r.validationError ? 'bg-red-50' : ''}>
-                        <td className="px-2 py-1 font-mono">{r.nis}</td>
+                        <td className="px-2 py-1 font-mono">{r.nisn}</td>
                         <td className="px-2 py-1">{r.fullName}</td>
                         <td className="px-2 py-1">{r.email}</td>
                         <td className="px-2 py-1">{r.gender}</td>
@@ -237,7 +284,7 @@ export function ImportStudentDialog() {
                 <table className="w-full border-collapse">
                   <thead className="sticky top-0 bg-gray-100">
                     <tr>
-                      <th className="px-2 py-1.5 text-left font-semibold">NIS</th>
+                      <th className="px-2 py-1.5 text-left font-semibold">NISN</th>
                       <th className="px-2 py-1.5 text-left font-semibold">Nama</th>
                       <th className="px-2 py-1.5 text-left font-semibold">Status</th>
                     </tr>
@@ -245,7 +292,7 @@ export function ImportStudentDialog() {
                   <tbody>
                     {results.map((r, i) => (
                       <tr key={i} className={r.status === 'error' ? 'bg-red-50' : 'bg-green-50'}>
-                        <td className="px-2 py-1 font-mono">{r.nis}</td>
+                        <td className="px-2 py-1 font-mono">{r.nisn}</td>
                         <td className="px-2 py-1">{r.fullName}</td>
                         <td className="px-2 py-1">
                           {r.status === 'success' ? (
