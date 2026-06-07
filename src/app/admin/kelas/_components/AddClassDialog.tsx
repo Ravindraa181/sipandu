@@ -38,7 +38,7 @@ const formSchema = z.object({
     .string()
     .min(2, 'Minimal 2 karakter')
     .max(10, 'Maks 10 karakter')
-    .regex(/^(X|XI|XII)-[A-Z]$/, 'Format: X-A, XI-B, XII-C'),
+    .regex(/^(X|XI|XII)-[A-Z0-9]+$/, 'Format: X-1, XI-2, XII-A, X-IPA, dst.'),
   gradeLevel: z.enum(['X', 'XI', 'XII']),
 });
 
@@ -89,7 +89,7 @@ export function AddClassDialog() {
               <Label htmlFor="name">Nama Kelas</Label>
               <Input
                 id="name"
-                placeholder="Mis. X-A, XI-B"
+                placeholder="Mis. X-1, XI-2, XII-IPA"
                 {...form.register('name')}
               />
               {form.formState.errors.name && (
