@@ -7,7 +7,7 @@
  */
 
 import { useMemo, useState } from 'react';
-import { ArrowUpDown, ChevronLeft, ChevronRight, Search, UserPlus } from 'lucide-react';
+import { ArrowUpDown, ChevronLeft, ChevronRight, Search, Trash2, UserPlus } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +26,7 @@ import {
   type StudentDetail,
 } from './StudentDetailDialog';
 import { BulkAssignDialog } from './BulkAssignDialog';
+import { BulkDeleteDialog } from './BulkDeleteDialog';
 import { DEFAULT_PAGE_SIZE } from '@/constants';
 
 export interface StudentTableRow {
@@ -60,6 +61,7 @@ export function StudentTable({ rows, classOptions, activePeriodExists }: Student
   const [detailTarget, setDetailTarget] = useState<StudentDetail | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkAssignOpen, setBulkAssignOpen] = useState(false);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
 
   const filtered = useMemo(() => {
     let result = rows;
@@ -138,18 +140,29 @@ export function StudentTable({ rows, classOptions, activePeriodExists }: Student
   return (
     <>
       {/* Bulk action bar */}
-      {activePeriodExists && selectedIds.size > 0 && (
+      {selectedIds.size > 0 && (
         <div className="mb-2 flex items-center gap-3 rounded-md border border-sipandu-blue bg-blue-50 px-3 py-2">
           <span className="text-sm font-medium text-sipandu-blue-deep">
             {selectedIds.size} siswa dipilih
           </span>
+          {activePeriodExists && (
+            <Button
+              size="sm"
+              className="gap-1.5 bg-sipandu-blue text-white hover:bg-sipandu-blue/90"
+              onClick={() => setBulkAssignOpen(true)}
+            >
+              <UserPlus className="h-3.5 w-3.5" aria-hidden />
+              Assign ke Kelas
+            </Button>
+          )}
           <Button
             size="sm"
-            className="gap-1.5 bg-sipandu-blue text-white hover:bg-sipandu-blue/90"
-            onClick={() => setBulkAssignOpen(true)}
+            variant="outline"
+            className="gap-1.5 border-red-300 text-red-600 hover:bg-red-50 hover:text-red-700"
+            onClick={() => setBulkDeleteOpen(true)}
           >
-            <UserPlus className="h-3.5 w-3.5" aria-hidden />
-            Assign ke Kelas
+            <Trash2 className="h-3.5 w-3.5" aria-hidden />
+            Hapus
           </Button>
           <Button
             size="sm"
@@ -220,18 +233,16 @@ export function StudentTable({ rows, classOptions, activePeriodExists }: Student
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-sipandu-border bg-gray-100 text-left">
-                {activePeriodExists && (
-                  <th className="w-8 px-3 py-2">
-                    <input
-                      type="checkbox"
-                      className="h-3.5 w-3.5 cursor-pointer accent-sipandu-blue"
-                      checked={paginated.length > 0 && selectedIds.size === paginated.length}
-                      onChange={toggleSelectAll}
-                      title="Pilih semua"
-                      suppressHydrationWarning
-                    />
-                  </th>
-                )}
+                <th className="w-8 px-3 py-2">
+                  <input
+                    type="checkbox"
+                    className="h-3.5 w-3.5 cursor-pointer accent-sipandu-blue"
+                    checked={paginated.length > 0 && selectedIds.size === paginated.length}
+                    onChange={toggleSelectAll}
+                    title="Pilih semua"
+                    suppressHydrationWarning
+                  />
+                </th>
                 <th className="px-3 py-2 text-xs font-semibold">
                   <button
                     type="button"
@@ -270,7 +281,7 @@ export function StudentTable({ rows, classOptions, activePeriodExists }: Student
               {paginated.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={activePeriodExists ? 9 : 8}
+                    colSpan={9}
                     className="px-3 py-10 text-center text-sm italic text-muted-foreground"
                   >
                     {rows.length === 0
@@ -284,17 +295,15 @@ export function StudentTable({ rows, classOptions, activePeriodExists }: Student
                     key={s.id}
                     className="border-b border-gray-100 hover:bg-blue-50/60"
                   >
-                    {activePeriodExists && (
-                      <td className="px-3 py-2">
-                        <input
-                          type="checkbox"
-                          className="h-3.5 w-3.5 cursor-pointer accent-sipandu-blue"
-                          checked={selectedIds.has(s.id)}
-                          onChange={() => toggleSelect(s.id)}
-                          suppressHydrationWarning
-                        />
-                      </td>
-                    )}
+                    <td className="px-3 py-2">
+                      <input
+                        type="checkbox"
+                        className="h-3.5 w-3.5 cursor-pointer accent-sipandu-blue"
+                        checked={selectedIds.has(s.id)}
+                        onChange={() => toggleSelect(s.id)}
+                        suppressHydrationWarning
+                      />
+                    </td>
                     <td className="px-3 py-2 font-mono text-xs">{s.nisn}</td>
                     <td className="px-3 py-2 font-medium text-foreground">
                       {s.fullName}
@@ -396,6 +405,19 @@ export function StudentTable({ rows, classOptions, activePeriodExists }: Student
           selectedStudentIds={Array.from(selectedIds)}
           selectedStudentNames={selectedStudentNames}
           classOptions={classOptions}
+        />
+      )}
+
+      {/* Modal bulk delete */}
+      {bulkDeleteOpen && (
+        <BulkDeleteDialog
+          open={bulkDeleteOpen}
+          onOpenChange={(o) => {
+            setBulkDeleteOpen(o);
+            if (!o) setSelectedIds(new Set());
+          }}
+          selectedStudentIds={Array.from(selectedIds)}
+          selectedStudentNames={selectedStudentNames}
         />
       )}
     </>

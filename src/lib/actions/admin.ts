@@ -504,6 +504,55 @@ export async function deleteStudent(studentId: string) {
   }
 }
 
+/**
+ * Hapus banyak siswa sekaligus. Setiap ID diverifikasi role-nya sebelum dihapus.
+ * Mengembalikan jumlah yang berhasil dihapus dan daftar error jika ada yang gagal.
+ */
+export async function bulkDeleteStudents(studentIds: string[]) {
+  try {
+    const auth = await checkAdminAuth();
+    if (!auth.ok) throw new Error(auth.error);
+
+    const parsed = z.array(z.string().uuid()).min(1).parse(studentIds);
+    const admin = await createServiceRoleClient();
+
+    // Verifikasi semua ID adalah siswa sebelum menghapus satu pun
+    const { data: profiles, error: fetchErr } = await admin
+      .from('profiles')
+      .select('id, role, full_name')
+      .in('id', parsed);
+
+    if (fetchErr) throw fetchErr;
+
+    const nonStudents = (profiles ?? []).filter((p: any) => p.role !== 'student');
+    if (nonStudents.length > 0) {
+      throw new Error('Beberapa ID bukan akun siswa — operasi dibatalkan');
+    }
+
+    const errors: string[] = [];
+    let deletedCount = 0;
+
+    for (const id of parsed) {
+      const { error: deleteErr } = await admin.auth.admin.deleteUser(id);
+      if (deleteErr) {
+        errors.push(`${id}: ${deleteErr.message}`);
+      } else {
+        deletedCount++;
+      }
+    }
+
+    revalidatePath('/admin/siswa');
+    return { ok: true, deletedCount, errors };
+  } catch (e) {
+    return {
+      ok: false,
+      deletedCount: 0,
+      errors: [],
+      error: e instanceof Error ? e.message : 'Gagal menghapus siswa',
+    };
+  }
+}
+
 export async function assignHomeroomTeacher(rawInput: {
   classId: string;
   periodId: string;
