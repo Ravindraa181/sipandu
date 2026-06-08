@@ -48,12 +48,12 @@ ALTER TABLE public.peer_review_submissions
   REFERENCES public.profiles(id)
   ON DELETE CASCADE;
 
--- 4. student_narrative_notes.written_by: RESTRICT → SET NULL
-ALTER TABLE public.student_narrative_notes
-  DROP CONSTRAINT IF EXISTS student_narrative_notes_written_by_fkey;
+-- 4. teacher_narrative_notes.written_by: RESTRICT → SET NULL
+ALTER TABLE public.teacher_narrative_notes
+  DROP CONSTRAINT IF EXISTS teacher_narrative_notes_written_by_fkey;
 
-ALTER TABLE public.student_narrative_notes
-  ADD CONSTRAINT student_narrative_notes_written_by_fkey
+ALTER TABLE public.teacher_narrative_notes
+  ADD CONSTRAINT teacher_narrative_notes_written_by_fkey
   FOREIGN KEY (written_by)
   REFERENCES public.profiles(id)
   ON DELETE SET NULL;
