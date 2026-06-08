@@ -489,10 +489,23 @@ export async function deleteStudent(studentId: string) {
       throw new Error('Hanya akun siswa yang bisa dihapus melalui halaman ini');
     }
 
-    // ALASAN: deleteUser dari Admin API menghapus dari auth.users,
-    // yang akan cascade ke profiles dan semua tabel anak via FK.
-    const { error: deleteErr } = await admin.auth.admin.deleteUser(parsed);
-    if (deleteErr) throw deleteErr;
+    // Langkah 1: hapus via auth API (cascade ke profiles via FK).
+    const { error: authErr } = await admin.auth.admin.deleteUser(parsed);
+
+    if (authErr) {
+      // Langkah 2: fallback jika auth user tidak ada (siswa dimasukkan via SQL/seed)
+      const isNotFound =
+        authErr.message?.toLowerCase().includes('not found') ||
+        authErr.status === 404;
+
+      if (!isNotFound) throw authErr;
+
+      const { error: profileErr } = await admin
+        .from('profiles')
+        .delete()
+        .eq('id', parsed);
+      if (profileErr) throw profileErr;
+    }
 
     revalidatePath('/admin/siswa');
     return { ok: true };
@@ -506,6 +519,10 @@ export async function deleteStudent(studentId: string) {
 
 /**
  * Hapus banyak siswa sekaligus. Setiap ID diverifikasi role-nya sebelum dihapus.
+ * Strategi hapus:
+ *   1. Coba hapus via auth.admin.deleteUser (cascade ke profiles via FK).
+ *   2. Jika auth user tidak ditemukan (siswa dibuat via SQL/seed tanpa auth),
+ *      fallback: hapus langsung dari tabel profiles.
  * Mengembalikan jumlah yang berhasil dihapus dan daftar error jika ada yang gagal.
  */
 export async function bulkDeleteStudents(studentIds: string[]) {
@@ -514,10 +531,10 @@ export async function bulkDeleteStudents(studentIds: string[]) {
     if (!auth.ok) throw new Error(auth.error);
 
     const parsed = z.array(z.string().uuid()).min(1).parse(studentIds);
-    const admin = await createServiceRoleClient();
+    const adminClient = await createServiceRoleClient();
 
     // Verifikasi semua ID adalah siswa sebelum menghapus satu pun
-    const { data: profiles, error: fetchErr } = await admin
+    const { data: profiles, error: fetchErr } = await adminClient
       .from('profiles')
       .select('id, role, full_name')
       .in('id', parsed);
@@ -533,11 +550,34 @@ export async function bulkDeleteStudents(studentIds: string[]) {
     let deletedCount = 0;
 
     for (const id of parsed) {
-      const { error: deleteErr } = await admin.auth.admin.deleteUser(id);
-      if (deleteErr) {
-        errors.push(`${id}: ${deleteErr.message}`);
-      } else {
+      // Langkah 1: hapus via auth API (cascade ke profiles)
+      const { error: authErr } = await adminClient.auth.admin.deleteUser(id);
+
+      if (!authErr) {
         deletedCount++;
+        continue;
+      }
+
+      // Langkah 2: fallback — jika auth user tidak ada, hapus langsung dari profiles
+      // Ini terjadi ketika siswa dimasukkan via SQL/seed tanpa membuat auth user
+      const isNotFound =
+        authErr.message?.toLowerCase().includes('not found') ||
+        authErr.message?.toLowerCase().includes('user not found') ||
+        authErr.status === 404;
+
+      if (isNotFound) {
+        const { error: profileErr } = await adminClient
+          .from('profiles')
+          .delete()
+          .eq('id', id);
+
+        if (profileErr) {
+          errors.push(`${id}: ${profileErr.message}`);
+        } else {
+          deletedCount++;
+        }
+      } else {
+        errors.push(`${id}: ${authErr.message}`);
       }
     }
 

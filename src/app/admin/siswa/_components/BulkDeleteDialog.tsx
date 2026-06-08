@@ -45,11 +45,16 @@ export function BulkDeleteDialog({
     startTransition(async () => {
       const result = await bulkDeleteStudents(selectedStudentIds);
       if (result.ok) {
-        const count = result.deletedCount;
-        toast.success(`${count} siswa berhasil dihapus`);
+        if (result.deletedCount > 0) {
+          toast.success(`${result.deletedCount} siswa berhasil dihapus`);
+        }
         if (result.errors.length > 0) {
-          toast.warning(`${result.errors.length} siswa gagal dihapus`, {
-            description: 'Coba hapus secara individual melalui tombol Detail.',
+          // Ambil pesan unik dari error (bukan UUID), tampilkan ke user
+          const uniqueReasons = [
+            ...new Set(result.errors.map((e) => e.split(': ').slice(1).join(': '))),
+          ];
+          toast.error(`${result.errors.length} siswa gagal dihapus`, {
+            description: uniqueReasons[0] ?? 'Terjadi kesalahan pada server.',
           });
         }
         onOpenChange(false);
