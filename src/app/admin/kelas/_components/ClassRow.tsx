@@ -6,12 +6,16 @@
  *              di bawah row saat tombol diklik.
  */
 
-import { useState } from 'react';
-import { ChevronDown, Users } from 'lucide-react';
+import { useState, useTransition } from 'react';
+import { ChevronDown, Pencil, Trash2, Users } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils/cn';
+import { deleteClass } from '@/lib/actions/admin';
+import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { TransferStudentDialog } from './TransferStudentDialog';
+import { EditClassDialog } from './EditClassDialog';
 
 export interface ClassStudent {
   id: string;
@@ -45,9 +49,23 @@ export function ClassRow({
   students,
 }: ClassRowProps) {
   const [expanded, setExpanded] = useState(false);
-  const [transferTarget, setTransferTarget] = useState<ClassStudent | null>(
-    null,
-  );
+  const [editOpen, setEditOpen] = useState(false);
+  const [transferTarget, setTransferTarget] = useState<ClassStudent | null>(null);
+  const [deletePending, startDeleteTransition] = useTransition();
+
+  function handleDelete(): Promise<void> {
+    return new Promise((resolve) => {
+      startDeleteTransition(async () => {
+        const result = await deleteClass(classId);
+        if (result.ok) {
+          toast.success(`Kelas ${className} berhasil dihapus`);
+        } else {
+          toast.error('Gagal menghapus kelas', { description: result.error });
+        }
+        resolve();
+      });
+    });
+  }
 
   return (
     <>
@@ -89,6 +107,39 @@ export function ClassRow({
                 aria-hidden
               />
             </Button>
+
+            <Button
+              size="sm"
+              variant="outline"
+              className="gap-1 border-sipandu-blue text-sipandu-blue hover:bg-blue-50"
+              onClick={() => setEditOpen(true)}
+            >
+              <Pencil className="h-3 w-3" aria-hidden />
+              Edit
+            </Button>
+
+            <ConfirmDialog
+              trigger={
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="gap-1 border-red-300 text-red-600 hover:bg-red-50"
+                  disabled={deletePending || studentCount > 0}
+                  title={
+                    studentCount > 0
+                      ? 'Hapus semua siswa dari kelas ini sebelum menghapus kelas'
+                      : undefined
+                  }
+                >
+                  <Trash2 className="h-3 w-3" aria-hidden />
+                  Hapus
+                </Button>
+              }
+              title={`Hapus kelas ${className}?`}
+              description="Kelas ini akan dihapus permanen. Aksi ini tidak dapat dibatalkan."
+              variant="destructive"
+              onConfirm={handleDelete}
+            />
           </div>
         </td>
       </tr>
@@ -191,6 +242,14 @@ export function ClassRow({
           targetAssignments={otherAssignments}
         />
       )}
+
+      <EditClassDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        classId={classId}
+        currentName={className}
+        currentGradeLevel={gradeLevel}
+      />
     </>
   );
 }

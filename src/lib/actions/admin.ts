@@ -781,6 +781,84 @@ export async function createClass(rawInput: { name: string; gradeLevel: string }
 }
 
 /**
+ * Ubah nama & tingkat kelas.
+ */
+export async function updateClassName(rawInput: {
+  classId: string;
+  name: string;
+  gradeLevel: string;
+}) {
+  try {
+    const auth = await checkAdminAuth();
+    if (!auth.ok) throw new Error(auth.error);
+
+    const parsed = z
+      .object({
+        classId: z.string().uuid(),
+        name: z
+          .string()
+          .min(2, 'Minimal 2 karakter')
+          .max(10, 'Maks 10 karakter')
+          .regex(/^(X|XI|XII)-[A-Z0-9]+$/, 'Format: X-1, XI-2, XII-A, dst.'),
+        gradeLevel: z.enum(['X', 'XI', 'XII']),
+      })
+      .parse(rawInput);
+
+    const admin = await createServiceRoleClient();
+    const { error } = await admin
+      .from('classes')
+      .update({ name: parsed.name, grade_level: parsed.gradeLevel } as any)
+      .eq('id', parsed.classId);
+
+    if (error) throw error;
+
+    revalidatePath('/admin/kelas');
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e.message || 'Gagal mengubah nama kelas' };
+  }
+}
+
+/**
+ * Hapus kelas. Hanya bisa dihapus jika tidak ada class_period_assignments
+ * yang mengacu ke kelas ini (ON DELETE RESTRICT di DB).
+ */
+export async function deleteClass(classId: string) {
+  try {
+    const auth = await checkAdminAuth();
+    if (!auth.ok) throw new Error(auth.error);
+
+    const parsed = z.string().uuid().parse(classId);
+    const admin = await createServiceRoleClient();
+
+    // Cek apakah kelas pernah dipakai di assignment (ada siswa/wali kelas)
+    const { count } = await admin
+      .from('class_period_assignments')
+      .select('id', { count: 'exact', head: true })
+      .eq('class_id', parsed);
+
+    if ((count ?? 0) > 0) {
+      throw new Error(
+        'Kelas ini sudah digunakan di periode aktif atau sebelumnya. ' +
+        'Tidak bisa dihapus untuk menjaga riwayat data.',
+      );
+    }
+
+    const { error } = await admin
+      .from('classes')
+      .delete()
+      .eq('id', parsed);
+
+    if (error) throw error;
+
+    revalidatePath('/admin/kelas');
+    return { ok: true };
+  } catch (e: any) {
+    return { ok: false, error: e.message || 'Gagal menghapus kelas' };
+  }
+}
+
+/**
  * Assign satu atau banyak siswa ke kelas pada periode aktif.
  * Jika class_period_assignment belum ada untuk kelas+periode ini, dibuat otomatis.
  */
