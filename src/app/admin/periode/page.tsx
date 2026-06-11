@@ -25,7 +25,7 @@ import { DeletePeriodButton } from './_components/DeletePeriodButton';
 import { ReactivatePeriodButton } from './_components/ReactivatePeriodButton';
 
 export const metadata = {
-  title: 'Manajemen Periode — Admin SiPandu',
+  title: 'Manajemen Periode',
 };
 
 interface PeriodRow {

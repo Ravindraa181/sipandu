@@ -28,7 +28,7 @@ import {
 } from './_components/X1AccumulationAccordion';
 
 export const metadata = {
-  title: 'Input Kehadiran — Wali Kelas',
+  title: 'Input Kehadiran',
 };
 
 interface SearchParams {

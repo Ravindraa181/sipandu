@@ -41,7 +41,7 @@ import {
 import { RiwayatTabs } from './_components/RiwayatTabs';
 
 export const metadata = {
-  title: 'Riwayat Saya — Siswa SiPandu',
+  title: 'Riwayat Saya',
 };
 
 // FIX: Definisikan tipe secara lokal untuk menghindari missing export dari @/types

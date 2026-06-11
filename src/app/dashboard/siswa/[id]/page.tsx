@@ -47,7 +47,7 @@ import {
 } from './_components/HistoryBarChart';
 
 export const metadata = {
-  title: 'Detail Siswa — Wali Kelas',
+  title: 'Detail Siswa',
 };
 
 interface AttendanceMonthRow {

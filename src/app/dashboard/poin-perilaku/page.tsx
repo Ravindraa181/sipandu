@@ -24,7 +24,7 @@ import {
 import { type TransactionCategory } from './_components/TransactionDialog';
 
 export const metadata = {
-  title: 'Poin Perilaku — Wali Kelas',
+  title: 'Poin Perilaku',
 };
 
 /** Ambil semua data yang dibutuhkan halaman poin perilaku. */

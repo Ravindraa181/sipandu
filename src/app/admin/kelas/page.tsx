@@ -13,7 +13,7 @@ import { AddClassDialog } from './_components/AddClassDialog';
 import { ClassRow, type ClassStudent } from './_components/ClassRow';
 
 export const metadata = {
-  title: 'Manajemen Kelas — Admin SiPandu',
+  title: 'Manajemen Kelas',
 };
 
 interface ClassData {

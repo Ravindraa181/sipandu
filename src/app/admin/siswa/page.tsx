@@ -10,7 +10,7 @@ import type { StudentDetail, StudentScoreHistoryRow } from './_components/Studen
 import { AddStudentDialog } from './_components/AddStudentDialog';
 import { ImportStudentDialog } from './_components/ImportStudentDialog';
 
-export const metadata = { title: 'Manajemen Siswa — Admin SiPandu' };
+export const metadata = { title: 'Manajemen Siswa' };
 
 async function loadData() {
   const supabase = await createClient();

@@ -17,7 +17,7 @@ import type { CategoryRow } from './_components/CategoryTable';
 import type { AspectItem } from './_components/AspectEditorList';
 
 export const metadata = {
-  title: 'Kategori Poin — Admin SiPandu',
+  title: 'Kategori Poin',
 };
 
 interface PageData {

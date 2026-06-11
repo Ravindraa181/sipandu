@@ -29,7 +29,7 @@ import {
 import { RecalculateButton } from './hasil-penilaian/_components/RecalculateButton';
 
 export const metadata = {
-  title: 'Dashboard — Wali Kelas',
+  title: 'Dashboard Wali Kelas',
 };
 
 interface DashboardData {

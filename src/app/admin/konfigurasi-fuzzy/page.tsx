@@ -22,7 +22,7 @@ import { FuzzySimulator } from './_components/FuzzySimulator';
 import { SchoolSettingsForm } from './_components/SchoolSettingsForm';
 
 export const metadata = {
-  title: 'Konfigurasi Fuzzy — Admin SiPandu',
+  title: 'Konfigurasi Fuzzy',
 };
 
 async function loadFuzzy(): Promise<FuzzyConfig> {

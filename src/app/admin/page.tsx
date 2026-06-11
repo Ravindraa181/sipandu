@@ -14,7 +14,7 @@ import Image from 'next/image';
 import { LoginForm } from './_components/LoginForm';
 
 export const metadata = {
-  title: 'Login Admin — SiPandu',
+  title: 'Login Admin',
   description: 'Portal administrator SiPandu, SMAN 13 Bandung.',
 };
 

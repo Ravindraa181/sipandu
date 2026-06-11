@@ -29,7 +29,7 @@ import { formatDate } from '@/lib/utils/format';
 import { PeerReviewForm } from './_components/PeerReviewForm';
 import { CompletionScreen } from './_components/CompletionScreen';
 
-export const metadata = { title: 'Peer Review — Siswa SiPandu' };
+export const metadata = { title: 'Peer Review' };
 
 async function loadData() {
   const ctx = await getStudentContext();

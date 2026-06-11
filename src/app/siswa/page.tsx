@@ -28,7 +28,7 @@ import {
 } from './_components/StudentHistoryChart';
 
 export const metadata = {
-  title: 'Dashboard Saya — Siswa SiPandu',
+  title: 'Dashboard Saya',
 };
 
 interface DashboardData {

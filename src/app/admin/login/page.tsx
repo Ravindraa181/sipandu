@@ -7,7 +7,7 @@ import { LoginForm } from '../_components/LoginForm';
 import { LOGO_SMAN13 } from '@/lib/logo-sman13';
 
 export const metadata = {
-  title: 'Login Admin — SiPandu',
+  title: 'Login Admin',
   description: 'Portal administrator SiPandu, SMAN 13 Bandung.',
 };
 

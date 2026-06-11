@@ -17,7 +17,7 @@ import { UI_STRINGS } from '@/constants';
 import { UserLoginForm } from './_components/UserLoginForm';
 
 export const metadata = {
-  title: 'Masuk — SiPandu',
+  title: 'Masuk',
   description: 'Portal Guru dan Siswa SiPandu, SMAN 13 Bandung.',
 };
 

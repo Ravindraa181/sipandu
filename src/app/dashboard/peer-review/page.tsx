@@ -26,7 +26,7 @@ import { OpenSessionForm } from './_components/OpenSessionForm';
 import { CloseSessionButton } from './_components/CloseSessionButton';
 
 export const metadata = {
-  title: 'Kelola Peer Review — Wali Kelas',
+  title: 'Kelola Peer Review',
 };
 
 interface ProgressRow {

@@ -30,7 +30,7 @@ import { RecalculateButton } from './_components/RecalculateButton';
 import { TeacherNoteForm } from '../siswa/[id]/_components/TeacherNoteForm';
 
 export const metadata = {
-  title: 'Hasil Penilaian — Wali Kelas',
+  title: 'Hasil Penilaian',
 };
 
 interface NarrativeNote {

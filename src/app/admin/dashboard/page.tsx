@@ -325,7 +325,7 @@ function formatDateRange(startISO: string, endISO: string): string {
  * ──────────────────────────────────────────────────────────────────── */
 
 export const metadata = {
-  title: 'Dashboard — Admin SiPandu',
+  title: 'Dashboard Admin',
 };
 
 export default async function AdminDashboardPage() {

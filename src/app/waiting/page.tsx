@@ -24,7 +24,7 @@ import { RefreshStatusButton } from './_components/RefreshStatusButton';
 import { LogoutButton } from './_components/LogoutButton';
 
 export const metadata = {
-  title: 'Menunggu Penugasan — SiPandu',
+  title: 'Menunggu Penugasan',
 };
 
 interface WaitingData {

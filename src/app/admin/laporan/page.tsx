@@ -22,7 +22,7 @@ import { RankingTable, type RankingRow } from './_components/RankingTable';
 import { ExportReportButtons } from './_components/ExportReportButtons';
 
 export const metadata = {
-  title: 'Laporan Global — Admin SiPandu',
+  title: 'Laporan Global',
 };
 
 interface ReportData {

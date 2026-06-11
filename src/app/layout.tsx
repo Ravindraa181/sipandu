@@ -16,8 +16,8 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: {
-    default: 'SiPandu — SMAN 13 Bandung',
-    template: '%s · SiPandu',
+    default: 'SiPandu',
+    template: '%s',
   },
   description:
     'Sistem Penilaian Terpadu (SiPandu) — Penilaian Perilaku Siswa Adaptif Menggunakan Fuzzy Logic. SMAN 13 Bandung.',
@@ -25,15 +25,14 @@ export const metadata: Metadata = {
   authors: [{ name: 'Ravindra Maulana Sahman' }],
   generator: 'Next.js',
   referrer: 'strict-origin-when-cross-origin',
-  // Block crawler default — sekolah tidak butuh public indexing.
   robots: {
     index: false,
     follow: false,
     nocache: true,
   },
   icons: {
-    icon: '/icon.jpeg',
-    apple: '/icon.jpeg',
+    icon: '/logo-sman13.jpeg',
+    apple: '/logo-sman13.jpeg',
   },
 };
 

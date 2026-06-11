@@ -23,7 +23,7 @@ import type {
 } from './_components/AssignClassDialog';
 
 export const metadata = {
-  title: 'Manajemen Guru — Admin SiPandu',
+  title: 'Manajemen Guru',
 };
 
 interface PageData {
