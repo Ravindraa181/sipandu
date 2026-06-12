@@ -2,11 +2,7 @@
 
 /**
  * @file admin/laporan/_components/ReportFilterBar.tsx
- * @description Filter bar untuk laporan global: dropdown periode + kelas.
- *
- *  Saat user mengubah filter, halaman di-refresh via router.push dengan
- *  query string baru — server component mengambil ulang data sesuai filter.
- *  Tombol Export dipindah ke PageHeader (ExportReportButtons) agar tidak duplikat.
+ * @description Filter bar: periode, kelas, dan kategori penilaian.
  */
 
 import { useTransition } from 'react';
@@ -26,6 +22,7 @@ export interface ReportFilterBarProps {
   classes: Array<{ id: string; name: string }>;
   selectedPeriodId: string;
   selectedClassId: string;
+  selectedCategory: string;
 }
 
 export function ReportFilterBar({
@@ -33,19 +30,19 @@ export function ReportFilterBar({
   classes,
   selectedPeriodId,
   selectedClassId,
+  selectedCategory,
 }: ReportFilterBarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
 
-  /** Perbarui query string dan reload server component. */
-  function setParam(key: 'period' | 'class', value: string) {
+  function setParam(key: 'period' | 'class' | 'category', value: string) {
     const params = new URLSearchParams(searchParams.toString());
+    // Reset ke halaman 1 setiap kali filter berubah
+    params.delete('page');
     if (value === 'all') params.delete(key);
     else params.set(key, value);
-    startTransition(() => {
-      router.push(`?${params.toString()}`);
-    });
+    startTransition(() => router.push(`?${params.toString()}`));
   }
 
   return (
@@ -73,7 +70,7 @@ export function ReportFilterBar({
         onValueChange={(v) => setParam('class', v)}
         disabled={pending}
       >
-        <SelectTrigger className="w-[160px]">
+        <SelectTrigger className="w-[150px]">
           <SelectValue placeholder="Semua Kelas" />
         </SelectTrigger>
         <SelectContent>
@@ -86,7 +83,23 @@ export function ReportFilterBar({
         </SelectContent>
       </Select>
 
-      {/* Indikator loading saat filter sedang diterapkan */}
+      <Select
+        value={selectedCategory}
+        onValueChange={(v) => setParam('category', v)}
+        disabled={pending}
+      >
+        <SelectTrigger className="w-[170px]">
+          <SelectValue placeholder="Semua Kategori" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="all">Semua Kategori</SelectItem>
+          <SelectItem value="sangat_baik">Sangat Baik</SelectItem>
+          <SelectItem value="baik">Baik</SelectItem>
+          <SelectItem value="cukup">Cukup</SelectItem>
+          <SelectItem value="perlu_pembinaan">Perlu Pembinaan</SelectItem>
+        </SelectContent>
+      </Select>
+
       {pending && (
         <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" aria-hidden />
       )}

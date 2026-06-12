@@ -20,14 +20,19 @@ import { CategoryDistributionChart } from '../dashboard/_components/CategoryDist
 import { ReportFilterBar } from './_components/ReportFilterBar';
 import { RankingTable, type RankingRow } from './_components/RankingTable';
 import { ExportReportButtons } from './_components/ExportReportButtons';
+import { PaginationBar } from './_components/PaginationBar';
 
 export const metadata = {
   title: 'Laporan Global',
 };
 
+const PAGE_SIZE = 25;
+
 interface ReportData {
-  rows: RankingRow[];
-  totalShown: number;
+  rows: RankingRow[];        // sudah dipaginasi
+  totalFiltered: number;     // jumlah setelah filter kategori
+  currentPage: number;
+  totalPages: number;
   avgZ: number | null;
   maxZ: number | null;
   minZ: number | null;
@@ -36,11 +41,14 @@ interface ReportData {
   classes: Array<{ id: string; name: string }>;
   selectedPeriodId: string;
   selectedClassId: string;
+  selectedCategory: string;
 }
 
 interface SearchParams {
   period?: string;
   class?: string;
+  category?: string;
+  page?: string;
 }
 
 /** Nilai kosong yang dikembalikan saat tidak ada data. */
@@ -49,10 +57,13 @@ function emptyReport(
   classes: ReportData['classes'],
   selectedPeriodId: string,
   selectedClassId: string,
+  selectedCategory: string,
 ): ReportData {
   return {
     rows: [],
-    totalShown: 0,
+    totalFiltered: 0,
+    currentPage: 1,
+    totalPages: 0,
     avgZ: null,
     maxZ: null,
     minZ: null,
@@ -61,6 +72,7 @@ function emptyReport(
     classes,
     selectedPeriodId,
     selectedClassId,
+    selectedCategory,
   };
 }
 
@@ -78,7 +90,7 @@ async function loadReport(searchParams: SearchParams): Promise<ReportData> {
   ).map((p) => ({
     id: p.id,
     label: p.name,
-    isActive: p.status === 'active',   // FIX: status enum, bukan is_active boolean
+    isActive: p.status === 'active',
   }));
 
   const selectedPeriodId =
@@ -92,10 +104,12 @@ async function loadReport(searchParams: SearchParams): Promise<ReportData> {
     .order('name');
   const classes = (classesData ?? []) as Array<{ id: string; name: string }>;
 
-  const selectedClassId = searchParams.class ?? 'all';
+  const selectedClassId    = searchParams.class    ?? 'all';
+  const selectedCategory   = searchParams.category ?? 'all';
+  const currentPage        = Math.max(1, parseInt(searchParams.page ?? '1', 10));
 
   if (!selectedPeriodId) {
-    return emptyReport(periods, classes, selectedPeriodId, selectedClassId);
+    return emptyReport(periods, classes, selectedPeriodId, selectedClassId, selectedCategory);
   }
 
   // ── Cari assignment untuk filter ───────────────────────────────
@@ -114,7 +128,7 @@ async function loadReport(searchParams: SearchParams): Promise<ReportData> {
   ).map((a) => a.id);
 
   if (assignmentIds.length === 0) {
-    return emptyReport(periods, classes, selectedPeriodId, selectedClassId);
+    return emptyReport(periods, classes, selectedPeriodId, selectedClassId, selectedCategory);
   }
 
   // ── FIX: Ambil enrollment_id dari student_class_enrollments ────
@@ -131,7 +145,7 @@ async function loadReport(searchParams: SearchParams): Promise<ReportData> {
   ).map((e) => e.id);
 
   if (enrollmentIds.length === 0) {
-    return emptyReport(periods, classes, selectedPeriodId, selectedClassId);
+    return emptyReport(periods, classes, selectedPeriodId, selectedClassId, selectedCategory);
   }
 
   // ── Ambil skor — batch 200 per request (hindari URL terlalu panjang) ─
@@ -169,8 +183,8 @@ async function loadReport(searchParams: SearchParams): Promise<ReportData> {
 
   const scoreRows = (scoresData ?? []) as unknown as ScoreRow[];
 
-  // ── Build rows + ranking ────────────────────────────────────────
-  const unranked = scoreRows
+  // ── Build ranked rows (seluruh data setelah filter periode+kelas) ─
+  const allRanked: RankingRow[] = scoreRows
     .filter((s) => s.enrollment?.student)
     .map((s) => ({
       studentId: s.enrollment!.student!.id,
@@ -180,15 +194,25 @@ async function loadReport(searchParams: SearchParams): Promise<ReportData> {
       x1: s.x1,
       x2: s.x2,
       x3: s.x3,
-      zScore: s.z_star,                // FIX: z_star → zScore (TS alias)
+      zScore: s.z_star,
       category: s.category,
     }))
-    .sort((a, b) => (b.zScore ?? -1) - (a.zScore ?? -1));
+    .sort((a, b) => (b.zScore ?? -1) - (a.zScore ?? -1))
+    .map((r, i) => ({ rank: i + 1, ...r }));
 
-  const rows: RankingRow[] = unranked.map((r, i) => ({ rank: i + 1, ...r }));
+  // ── Distribusi (dari seluruh data, sebelum filter kategori) ────
+  const distribution: Record<CategoryType, number> = {
+    sangat_baik: 0,
+    baik: 0,
+    cukup: 0,
+    perlu_pembinaan: 0,
+  };
+  for (const r of allRanked) {
+    if (r.category) distribution[r.category as CategoryType] += 1;
+  }
 
-  // ── Statistik ──────────────────────────────────────────────────
-  const validZ = rows
+  // ── Statistik (dari seluruh data, sebelum filter kategori) ─────
+  const validZ = allRanked
     .map((r) => r.zScore)
     .filter((z): z is number => typeof z === 'number');
   const avgZ =
@@ -196,20 +220,22 @@ async function loadReport(searchParams: SearchParams): Promise<ReportData> {
   const maxZ = validZ.length > 0 ? Math.max(...validZ) : null;
   const minZ = validZ.length > 0 ? Math.min(...validZ) : null;
 
-  // ── Distribusi ─────────────────────────────────────────────────
-  const distribution: Record<CategoryType, number> = {
-    sangat_baik: 0,
-    baik: 0,
-    cukup: 0,
-    perlu_pembinaan: 0,
-  };
-  for (const r of rows) {
-    if (r.category) distribution[r.category as CategoryType] += 1;
-  }
+  // ── Filter kategori ────────────────────────────────────────────
+  const filtered =
+    selectedCategory === 'all'
+      ? allRanked
+      : allRanked.filter((r) => r.category === selectedCategory);
+
+  const totalFiltered = filtered.length;
+  const totalPages = Math.max(1, Math.ceil(totalFiltered / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const rows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
   return {
     rows,
-    totalShown: rows.length,
+    totalFiltered,
+    currentPage: safePage,
+    totalPages,
     avgZ,
     maxZ,
     minZ,
@@ -218,6 +244,7 @@ async function loadReport(searchParams: SearchParams): Promise<ReportData> {
     classes,
     selectedPeriodId,
     selectedClassId,
+    selectedCategory,
   };
 }
 
@@ -247,13 +274,14 @@ export default async function AdminLaporanPage({
         classes={data.classes}
         selectedPeriodId={data.selectedPeriodId}
         selectedClassId={data.selectedClassId}
+        selectedCategory={data.selectedCategory}
       />
 
       {/* Stat tiles */}
       <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
         <StatCard
           label="Siswa Tampil"
-          value={data.totalShown}
+          value={data.totalFiltered}
           subLabel="berdasarkan filter"
           icon={Users}
           accent="navy"
@@ -280,7 +308,15 @@ export default async function AdminLaporanPage({
 
       {/* Layout: tabel + distribusi */}
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-[65%_35%]">
-        <RankingTable rows={data.rows} />
+        <div className="flex flex-col gap-2">
+          <RankingTable rows={data.rows} />
+          <PaginationBar
+            currentPage={data.currentPage}
+            totalPages={data.totalPages}
+            totalRows={data.totalFiltered}
+            pageSize={PAGE_SIZE}
+          />
+        </div>
 
         <div className="rounded-md border border-sipandu-border bg-white p-3.5">
           <h2 className="mb-2.5 text-base font-bold text-foreground">
@@ -288,7 +324,7 @@ export default async function AdminLaporanPage({
           </h2>
           <CategoryDistributionChart
             counts={data.distribution}
-            totalStudents={data.totalShown}
+            totalStudents={Object.values(data.distribution).reduce((a, b) => a + b, 0)}
           />
         </div>
       </div>
