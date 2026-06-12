@@ -136,7 +136,14 @@ async function loadDashboardData(): Promise<DashboardData> {
 
   // ── 4. Per kelas: hitung enrollment, attendance, points, peer ─
   const classRows: ClassStatusRow[] = [];
-  const allEnrollmentIds: string[] = []; // Tambahkan untuk query chart global
+  // Akumulasi distribusi langsung di loop per-kelas (hindari .in() dengan 700+ ID)
+  const distribution: Record<CategoryType, number> = {
+    sangat_baik: 0,
+    baik: 0,
+    cukup: 0,
+    perlu_pembinaan: 0,
+  };
+  let scoredGlobal = 0;
 
   for (const a of assignmentRows) {
     if (!a.classes) continue;
@@ -150,9 +157,6 @@ async function loadDashboardData(): Promise<DashboardData> {
 
     const enrollmentIds = (enrollments || []).map((e) => e.id);
     const total = enrollmentIds.length;
-    
-    // Simpan untuk query global nanti
-    if (total > 0) allEnrollmentIds.push(...enrollmentIds);
 
     let lockedM = 0;
     let hasPoints = false;
@@ -166,7 +170,7 @@ async function loadDashboardData(): Promise<DashboardData> {
         .select('id', { count: 'exact', head: true })
         .in('enrollment_id', enrollmentIds)
         .eq('is_locked', true);
-        
+
       lockedM = Math.floor((lockedCount ?? 0) / total);
 
       // Apakah ada transaksi poin di kelas ini?
@@ -174,17 +178,23 @@ async function loadDashboardData(): Promise<DashboardData> {
         .from('behavior_point_transactions')
         .select('id', { count: 'exact', head: true })
         .in('enrollment_id', enrollmentIds);
-        
+
       hasPoints = (pointTxnCount ?? 0) > 0;
 
-      // Berapa siswa sudah punya skor Z*
-      const { count: scoredCount } = await supabase
+      // Ambil skor Z* per siswa di kelas ini — sekaligus untuk distribusi global
+      const { data: classScores } = await supabase
         .from('behavior_final_scores')
-        .select('id', { count: 'exact', head: true })
+        .select('category')
         .in('enrollment_id', enrollmentIds)
         .not('z_star', 'is', null);
-        
-      scored = scoredCount ?? 0;
+
+      for (const s of (classScores ?? []) as Array<{ category: CategoryType | null }>) {
+        if (s.category) {
+          distribution[s.category] += 1;
+          scoredGlobal += 1;
+        }
+      }
+      scored = classScores?.length ?? 0;
     }
 
     // Status sesi peer review tetap menggunakan class_period_assignment_id terbaru
@@ -227,36 +237,8 @@ async function loadDashboardData(): Promise<DashboardData> {
   // ── 5. Total siswa aktif di seluruh kelas pada periode ─────────
   const totalStudents = classRows.reduce((sum, r) => sum + r.totalStudents, 0);
 
-  // ── 6. Distribusi kategori Z* global ───────────────────────────
-  const { data: scoresData } = await supabase
-    .from('behavior_final_scores')
-    .select('category, enrollment_id, z_star')
-    .in(
-      'enrollment_id',
-      allEnrollmentIds.length > 0
-        ? allEnrollmentIds
-        : ['00000000-0000-0000-0000-000000000000'], // Fallback UUID jika 0 siswa agar tidak error
-    );
-
-  const scoreRows = (scoresData ?? []) as unknown as Array<{
-    category: CategoryType | null;
-    z_star: number | null;
-  }>;
-
-  const distribution: Record<CategoryType, number> = {
-    sangat_baik: 0,
-    baik: 0,
-    cukup: 0,
-    perlu_pembinaan: 0,
-  };
-  let scoredTotal = 0;
-  for (const s of scoreRows) {
-    if (s.category) {
-      distribution[s.category] += 1;
-      scoredTotal += 1;
-    }
-  }
-  const notScoredCount = Math.max(0, totalStudents - scoredTotal);
+  // ── 6. Distribusi sudah diakumulasi di loop kelas di atas ──────
+  const notScoredCount = Math.max(0, totalStudents - scoredGlobal);
 
   // ── 7. Build notifikasi otomatis ────────────────────────────────
   const notifications: SystemNotification[] = [];

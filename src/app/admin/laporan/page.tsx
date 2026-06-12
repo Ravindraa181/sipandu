@@ -134,21 +134,26 @@ async function loadReport(searchParams: SearchParams): Promise<ReportData> {
     return emptyReport(periods, classes, selectedPeriodId, selectedClassId);
   }
 
-  // ── Ambil skor — filter by enrollment_id, kolom z_star ────────
-  const { data: scoresData } = await supabase
-    .from('behavior_final_scores')
-    .select(
-      `x1, x2, x3, z_star, category,
-       enrollment:enrollment_id (
-         student:student_id (id, full_name, nisn),
-         assignment:class_period_assignment_id (
-           class:class_id (name)
-         )
-       )`,
-      // FIX: z_star (bukan z_star)
-      // FIX: assignment:class_period_assignment_id (bukan assignment:class_period_assignment_id)
-    )
-    .in('enrollment_id', enrollmentIds);  // FIX: filter by enrollment_id
+  // ── Ambil skor — batch 200 per request (hindari URL terlalu panjang) ─
+  const SCORE_BATCH = 200;
+  const allScoreRows: unknown[] = [];
+  for (let i = 0; i < enrollmentIds.length; i += SCORE_BATCH) {
+    const chunk = enrollmentIds.slice(i, i + SCORE_BATCH);
+    const { data: batch } = await supabase
+      .from('behavior_final_scores')
+      .select(
+        `x1, x2, x3, z_star, category,
+         enrollment:enrollment_id (
+           student:student_id (id, full_name, nisn),
+           assignment:class_period_assignment_id (
+             class:class_id (name)
+           )
+         )`,
+      )
+      .in('enrollment_id', chunk);
+    allScoreRows.push(...(batch ?? []));
+  }
+  const scoresData = allScoreRows;
 
   type ScoreRow = {
     x1: number | null;
