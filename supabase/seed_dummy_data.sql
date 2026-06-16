@@ -4,45 +4,31 @@
 -- ============================================================
 -- CARA PAKAI:
 --   Jalankan di Supabase SQL Editor (Settings → SQL Editor)
---   sebagai postgres / service role.
+--   sebagai postgres / service role. Pilih "Run without RLS".
 --
---   Jika timeout, jalankan per BLOK secara berurutan:
---     Blok 1 (fungsi fuzzy)
---     Blok 2 (tabel tier sementara)
---     Blok 3 (absensi + poin perilaku)
---     Blok 4 (buat sesi peer review)
---     Blok 5 (bulk insert submisi peer review)
---     Blok 6 (tutup sesi → trigger hitung X3 otomatis)
---     Blok 7 (hitung & simpan nilai fuzzy Z*)
---     Blok 8 (bersihkan fungsi sementara)
+--   Jika timeout, jalankan per BLOK secara berurutan.
 --
 -- PRASYARAT:
---   1. Periode aktif sudah ada di academic_periods (status = 'active')
+--   1. Periode aktif sudah ada (status = 'active')
 --   2. Siswa sudah di-enroll ke kelas (student_class_enrollments)
---   3. Setiap class_period_assignment sudah ada homeroom_teacher_id
---      (jika belum, script memakai fallback ke admin pertama)
---   4. Kategori pelanggaran & reward sudah diinput (is_active = true)
---   5. Migration 04_fix_cascade_delete.sql sudah dijalankan
+--   3. Kategori pelanggaran & reward sudah diinput (is_active = true)
 --
 -- DISTRIBUSI TIER:
---   PP  (Perlu Pembinaan) : 10%
---   C   (Cukup)           : 10%
---   B   (Baik)            : 35%
---   SB  (Sangat Baik)     : 45%
+--   PP  (Perlu Pembinaan) :  5%  — kehadiran sangat rendah (45-62%)
+--   C   (Cukup)           : 10%  — kehadiran rendah (65-79%)
+--   B   (Baik)            : 25%  — kehadiran sedang (80-92%)
+--   SB  (Sangat Baik)     : 60%  — kehadiran tinggi (88-100%)
 --
--- KALENDER ABSENSI 2026:
---   Jan(23) Feb(17) Mar(6) Apr(25) Mei(14) Jun(10) = 95 hari
+-- CATATAN PENTING:
+--   - Poin Perilaku TIDAK PERNAH 0. Minimum 50 untuk semua siswa.
+--   - Hanya pelanggaran kecil (≤ 15 poin) yang digunakan.
+--   - Kategori PP disebabkan kehadiran rendah, bukan nilai perilaku 0.
 -- ============================================================
 
 BEGIN;
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- BLOK 1: Fungsi bantu fuzzy Mamdani
--- Parameter default konfigurasi fuzzy SiPandu:
---   X1: rendah=TL[60,75]  sedang=TRI[60,75,90]  tinggi=TR[85,95]
---   X2: rendah=TL[40,60]  sedang=TRI[40,60,80]  tinggi=TR[60,85]
---   X3: rendah=TL[50,70]  sedang=TRI[50,75,90]  tinggi=TR[80,95]
---   Z : PP=TL[40,50]  C=TRI[40,55,70]  B=TRI[65,80,90]  SB=TR[85,95]
 -- ────────────────────────────────────────────────────────────────────────────
 
 CREATE OR REPLACE FUNCTION _sp_tl(x NUMERIC, a NUMERIC, b NUMERIC)
@@ -72,93 +58,86 @@ DECLARE
   x1l NUMERIC; x1m NUMERIC; x1h NUMERIC;
   x2l NUMERIC; x2m NUMERIC; x2h NUMERIC;
   x3l NUMERIC; x3m NUMERIC; x3h NUMERIC;
-  a_pp NUMERIC := 0;
-  a_c  NUMERIC := 0;
-  a_b  NUMERIC := 0;
-  a_sb NUMERIC := 0;
-  al   NUMERIC;
-  z    NUMERIC;
-  mu   NUMERIC;
-  num  NUMERIC := 0;
-  den  NUMERIC := 0;
-  k    INT;
+  a_pp NUMERIC := 0; a_c  NUMERIC := 0;
+  a_b  NUMERIC := 0; a_sb NUMERIC := 0;
+  al NUMERIC; z NUMERIC; mu NUMERIC;
+  num NUMERIC := 0; den NUMERIC := 0; k INT;
 BEGIN
-  -- Fuzzifikasi input
-  x1l := _sp_tl(x1, 60, 75);   x1m := _sp_tri(x1, 60, 75, 90);  x1h := _sp_tr(x1, 85, 95);
-  x2l := _sp_tl(x2, 40, 60);   x2m := _sp_tri(x2, 40, 60, 80);  x2h := _sp_tr(x2, 60, 85);
-  x3l := _sp_tl(x3, 50, 70);   x3m := _sp_tri(x3, 50, 75, 90);  x3h := _sp_tr(x3, 80, 95);
+  x1l := _sp_tl(x1,60,75);   x1m := _sp_tri(x1,60,75,90);  x1h := _sp_tr(x1,85,95);
+  x2l := _sp_tl(x2,40,60);   x2m := _sp_tri(x2,40,60,80);  x2h := _sp_tr(x2,60,85);
+  x3l := _sp_tl(x3,50,70);   x3m := _sp_tri(x3,50,75,90);  x3h := _sp_tr(x3,80,95);
 
-  -- 27 aturan IF-THEN (AND = MIN, OR = MAX)
-  -- X1 = Tinggi
-  al := LEAST(x1h, x2h, x3h); IF al > a_sb THEN a_sb := al; END IF;
-  al := LEAST(x1h, x2h, x3m); IF al > a_sb THEN a_sb := al; END IF;
-  al := LEAST(x1h, x2h, x3l); IF al > a_b  THEN a_b  := al; END IF;
-  al := LEAST(x1h, x2m, x3h); IF al > a_sb THEN a_sb := al; END IF;
-  al := LEAST(x1h, x2m, x3m); IF al > a_b  THEN a_b  := al; END IF;
-  al := LEAST(x1h, x2m, x3l); IF al > a_c  THEN a_c  := al; END IF;
-  al := LEAST(x1h, x2l, x3h); IF al > a_b  THEN a_b  := al; END IF;
-  al := LEAST(x1h, x2l, x3m); IF al > a_c  THEN a_c  := al; END IF;
-  al := LEAST(x1h, x2l, x3l); IF al > a_pp THEN a_pp := al; END IF;
-  -- X1 = Sedang
-  al := LEAST(x1m, x2h, x3h); IF al > a_sb THEN a_sb := al; END IF;
-  al := LEAST(x1m, x2h, x3m); IF al > a_b  THEN a_b  := al; END IF;
-  al := LEAST(x1m, x2h, x3l); IF al > a_c  THEN a_c  := al; END IF;
-  al := LEAST(x1m, x2m, x3h); IF al > a_b  THEN a_b  := al; END IF;
-  al := LEAST(x1m, x2m, x3m); IF al > a_c  THEN a_c  := al; END IF;
-  al := LEAST(x1m, x2m, x3l); IF al > a_pp THEN a_pp := al; END IF;
-  al := LEAST(x1m, x2l, x3h); IF al > a_c  THEN a_c  := al; END IF;
-  al := LEAST(x1m, x2l, x3m); IF al > a_pp THEN a_pp := al; END IF;
-  al := LEAST(x1m, x2l, x3l); IF al > a_pp THEN a_pp := al; END IF;
-  -- X1 = Rendah
-  al := LEAST(x1l, x2h, x3h); IF al > a_b  THEN a_b  := al; END IF;
-  al := LEAST(x1l, x2h, x3m); IF al > a_c  THEN a_c  := al; END IF;
-  al := LEAST(x1l, x2h, x3l); IF al > a_pp THEN a_pp := al; END IF;
-  al := LEAST(x1l, x2m, x3h); IF al > a_c  THEN a_c  := al; END IF;
-  al := LEAST(x1l, x2m, x3m); IF al > a_pp THEN a_pp := al; END IF;
-  al := LEAST(x1l, x2m, x3l); IF al > a_pp THEN a_pp := al; END IF;
-  al := LEAST(x1l, x2l, x3h); IF al > a_pp THEN a_pp := al; END IF;
-  al := LEAST(x1l, x2l, x3m); IF al > a_pp THEN a_pp := al; END IF;
-  al := LEAST(x1l, x2l, x3l); IF al > a_pp THEN a_pp := al; END IF;
+  al:=LEAST(x1h,x2h,x3h); IF al>a_sb THEN a_sb:=al; END IF;
+  al:=LEAST(x1h,x2h,x3m); IF al>a_sb THEN a_sb:=al; END IF;
+  al:=LEAST(x1h,x2h,x3l); IF al>a_b  THEN a_b:=al;  END IF;
+  al:=LEAST(x1h,x2m,x3h); IF al>a_sb THEN a_sb:=al; END IF;
+  al:=LEAST(x1h,x2m,x3m); IF al>a_b  THEN a_b:=al;  END IF;
+  al:=LEAST(x1h,x2m,x3l); IF al>a_c  THEN a_c:=al;  END IF;
+  al:=LEAST(x1h,x2l,x3h); IF al>a_b  THEN a_b:=al;  END IF;
+  al:=LEAST(x1h,x2l,x3m); IF al>a_c  THEN a_c:=al;  END IF;
+  al:=LEAST(x1h,x2l,x3l); IF al>a_pp THEN a_pp:=al; END IF;
+  al:=LEAST(x1m,x2h,x3h); IF al>a_sb THEN a_sb:=al; END IF;
+  al:=LEAST(x1m,x2h,x3m); IF al>a_b  THEN a_b:=al;  END IF;
+  al:=LEAST(x1m,x2h,x3l); IF al>a_c  THEN a_c:=al;  END IF;
+  al:=LEAST(x1m,x2m,x3h); IF al>a_b  THEN a_b:=al;  END IF;
+  al:=LEAST(x1m,x2m,x3m); IF al>a_c  THEN a_c:=al;  END IF;
+  al:=LEAST(x1m,x2m,x3l); IF al>a_pp THEN a_pp:=al; END IF;
+  al:=LEAST(x1m,x2l,x3h); IF al>a_c  THEN a_c:=al;  END IF;
+  al:=LEAST(x1m,x2l,x3m); IF al>a_pp THEN a_pp:=al; END IF;
+  al:=LEAST(x1m,x2l,x3l); IF al>a_pp THEN a_pp:=al; END IF;
+  al:=LEAST(x1l,x2h,x3h); IF al>a_b  THEN a_b:=al;  END IF;
+  al:=LEAST(x1l,x2h,x3m); IF al>a_c  THEN a_c:=al;  END IF;
+  al:=LEAST(x1l,x2h,x3l); IF al>a_pp THEN a_pp:=al; END IF;
+  al:=LEAST(x1l,x2m,x3h); IF al>a_c  THEN a_c:=al;  END IF;
+  al:=LEAST(x1l,x2m,x3m); IF al>a_pp THEN a_pp:=al; END IF;
+  al:=LEAST(x1l,x2m,x3l); IF al>a_pp THEN a_pp:=al; END IF;
+  al:=LEAST(x1l,x2l,x3h); IF al>a_pp THEN a_pp:=al; END IF;
+  al:=LEAST(x1l,x2l,x3m); IF al>a_pp THEN a_pp:=al; END IF;
+  al:=LEAST(x1l,x2l,x3l); IF al>a_pp THEN a_pp:=al; END IF;
 
-  IF a_pp = 0 AND a_c = 0 AND a_b = 0 AND a_sb = 0 THEN
-    RETURN 0.0;
-  END IF;
+  IF a_pp=0 AND a_c=0 AND a_b=0 AND a_sb=0 THEN RETURN 0.0; END IF;
 
-  -- Defuzzifikasi centroid: 200 titik sampel pada [0, 100]
   FOR k IN 0..199 LOOP
     z  := k * 100.0 / 199.0;
     mu := GREATEST(
-      CASE WHEN a_pp > 0 THEN LEAST(a_pp, _sp_tl(z,  40, 50))    ELSE 0.0 END,
-      CASE WHEN a_c  > 0 THEN LEAST(a_c,  _sp_tri(z, 40, 55, 70)) ELSE 0.0 END,
-      CASE WHEN a_b  > 0 THEN LEAST(a_b,  _sp_tri(z, 65, 80, 90)) ELSE 0.0 END,
-      CASE WHEN a_sb > 0 THEN LEAST(a_sb, _sp_tr(z,  85, 95))     ELSE 0.0 END
+      CASE WHEN a_pp>0 THEN LEAST(a_pp, _sp_tl(z,  40,50))     ELSE 0.0 END,
+      CASE WHEN a_c >0 THEN LEAST(a_c,  _sp_tri(z, 40,55,70))  ELSE 0.0 END,
+      CASE WHEN a_b >0 THEN LEAST(a_b,  _sp_tri(z, 65,80,90))  ELSE 0.0 END,
+      CASE WHEN a_sb>0 THEN LEAST(a_sb, _sp_tr(z,  85,95))     ELSE 0.0 END
     );
-    num := num + z  * mu;
+    num := num + z * mu;
     den := den + mu;
   END LOOP;
 
   RETURN CASE WHEN den <= 0 THEN 0.0
-              ELSE ROUND((num / den)::NUMERIC, 2)
-         END;
+              ELSE ROUND((num / den)::NUMERIC, 2) END;
 END;
 $$;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
--- BLOK 2: Tabel sementara untuk menyimpan tier setiap siswa
--- (Dipakai oleh Blok 3, 5, dan 7. Otomatis dihapus saat COMMIT.)
+-- BLOK 2: Tabel sementara tier siswa
 -- ────────────────────────────────────────────────────────────────────────────
 
 CREATE TEMP TABLE IF NOT EXISTS _sp_tiers (
-  enrollment_id   UUID      PRIMARY KEY,
-  student_id      UUID      NOT NULL,
-  assignment_id   UUID      NOT NULL,
-  tier            SMALLINT  NOT NULL CHECK (tier BETWEEN 1 AND 4)
+  enrollment_id   UUID     PRIMARY KEY,
+  student_id      UUID     NOT NULL,
+  assignment_id   UUID     NOT NULL,
+  tier            SMALLINT NOT NULL CHECK (tier BETWEEN 1 AND 4)
 ) ON COMMIT DROP;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
--- BLOK 3: Absensi bulanan (6 bulan, dikunci) + transaksi poin perilaku
+-- BLOK 3: Absensi bulanan + poin perilaku
+--
+-- Strategi skor perilaku per tier (raw_score setelah transaksi):
+--   PP  (tier 1): raw_score 50–64  — kehadiran 45-62% yang menyebabkan PP
+--   C   (tier 2): raw_score 64–74  — kehadiran 65-79%
+--   B   (tier 3): raw_score 75–90  — kehadiran 80-92%
+--   SB  (tier 4): raw_score 87–105 — kehadiran 88-100%
+--
+-- Pelanggaran: HANYA kategori dengan point_deduction ≤ 15.
+-- Tidak ada siswa dengan Poin Perilaku = 0.
 -- ────────────────────────────────────────────────────────────────────────────
 
 DO $$
@@ -173,10 +152,13 @@ DECLARE
   v_enr             RECORD;
   v_teacher_id      UUID;
 
-  v_viol_ids        UUID[];
-  v_viol_pts        SMALLINT[];
+  -- Semua kategori (untuk reward)
   v_reward_ids      UUID[];
   v_reward_pts      SMALLINT[];
+
+  -- Hanya pelanggaran KECIL ≤ 15 poin (agar skor tidak jatuh ke 0)
+  v_viol_ids        UUID[];
+  v_viol_pts        SMALLINT[];
 
   v_rnd             NUMERIC;
   v_tier            SMALLINT;
@@ -185,50 +167,61 @@ DECLARE
   v_absent          SMALLINT;
   v_sd              SMALLINT;
 
-  v_n_viol          INT;
-  v_n_reward        INT;
+  -- Target skor perilaku
+  v_target_score    SMALLINT;
+  v_total_delta     INT;       -- positif = butuh reward, negatif = butuh pelanggaran
+  v_remaining       INT;       -- sisa delta yang perlu dibuat
   v_cat_idx         INT;
+  v_pts             SMALLINT;
   v_tx_date         DATE;
 
   i                 INT;
   j                 INT;
   v_total           INT := 0;
 BEGIN
-  -- Periode aktif
-  SELECT id INTO v_period_id FROM public.academic_periods WHERE status = 'active' LIMIT 1;
+  SELECT id INTO v_period_id FROM public.academic_periods WHERE status='active' LIMIT 1;
   IF v_period_id IS NULL THEN
-    RAISE EXCEPTION 'Tidak ada periode aktif. Aktifkan satu periode terlebih dahulu.';
+    RAISE EXCEPTION 'Tidak ada periode aktif.';
   END IF;
 
-  -- Fallback teacher jika kelas belum punya homeroom_teacher_id
-  SELECT id INTO v_fallback_uid FROM public.profiles
-  WHERE role = 'admin' LIMIT 1;
+  SELECT id INTO v_fallback_uid FROM public.profiles WHERE role='admin' LIMIT 1;
   IF v_fallback_uid IS NULL THEN
-    SELECT id INTO v_fallback_uid FROM public.profiles
-    WHERE role = 'teacher' LIMIT 1;
+    SELECT id INTO v_fallback_uid FROM public.profiles WHERE role='teacher' LIMIT 1;
   END IF;
   IF v_fallback_uid IS NULL THEN
-    RAISE EXCEPTION 'Tidak ditemukan admin/teacher. Pastikan minimal satu akun admin sudah ada.';
+    RAISE EXCEPTION 'Tidak ada admin/teacher sebagai fallback.';
   END IF;
 
-  -- Muat kategori pelanggaran
-  SELECT ARRAY_AGG(id ORDER BY id),
-         ARRAY_AGG(point_deduction::SMALLINT ORDER BY id)
-  INTO v_viol_ids, v_viol_pts
-  FROM public.violation_categories WHERE is_active = TRUE;
-
-  IF v_viol_ids IS NULL THEN
-    RAISE EXCEPTION 'Tidak ada violation_categories aktif. Tambahkan terlebih dahulu.';
-  END IF;
-
-  -- Muat kategori reward
-  SELECT ARRAY_AGG(id ORDER BY id),
-         ARRAY_AGG(point_addition::SMALLINT ORDER BY id)
+  -- Muat reward (semua kategori)
+  SELECT ARRAY_AGG(id ORDER BY point_addition),
+         ARRAY_AGG(point_addition::SMALLINT ORDER BY point_addition)
   INTO v_reward_ids, v_reward_pts
   FROM public.reward_categories WHERE is_active = TRUE;
 
   IF v_reward_ids IS NULL THEN
-    RAISE EXCEPTION 'Tidak ada reward_categories aktif. Tambahkan terlebih dahulu.';
+    RAISE EXCEPTION 'Tidak ada reward_categories aktif.';
+  END IF;
+
+  -- Muat HANYA pelanggaran kecil (≤ 15 poin) untuk keamanan skor
+  SELECT ARRAY_AGG(id ORDER BY point_deduction),
+         ARRAY_AGG(point_deduction::SMALLINT ORDER BY point_deduction)
+  INTO v_viol_ids, v_viol_pts
+  FROM public.violation_categories
+  WHERE is_active = TRUE AND point_deduction <= 15;
+
+  -- Fallback: jika semua pelanggaran > 15, pakai yang paling kecil saja
+  IF v_viol_ids IS NULL THEN
+    SELECT ARRAY_AGG(id ORDER BY point_deduction),
+           ARRAY_AGG(point_deduction::SMALLINT ORDER BY point_deduction)
+    INTO v_viol_ids, v_viol_pts
+    FROM (
+      SELECT id, point_deduction FROM public.violation_categories
+      WHERE is_active = TRUE ORDER BY point_deduction LIMIT 3
+    ) t;
+  END IF;
+
+  IF v_viol_ids IS NULL THEN
+    RAISE EXCEPTION 'Tidak ada violation_categories aktif.';
   END IF;
 
   -- ── Loop per kelas ──────────────────────────────────────────
@@ -241,43 +234,38 @@ BEGIN
   LOOP
     v_teacher_id := v_assignment.homeroom_teacher_id;
 
-    -- ── Loop per siswa ───────────────────────────────────────
     FOR v_enr IN
       SELECT sce.id AS enrollment_id, sce.student_id
       FROM   public.student_class_enrollments sce
       WHERE  sce.class_period_assignment_id = v_assignment.id
       AND    sce.status = 'active'
     LOOP
-      -- ── Tetapkan tier ─────────────────────────────────────
+      -- ── Tetapkan tier ───────────────────────────────────────
       v_rnd := random();
-      IF    v_rnd < 0.10 THEN v_tier := 1;   -- PP  10 %
-      ELSIF v_rnd < 0.20 THEN v_tier := 2;   -- C   10 %
-      ELSIF v_rnd < 0.55 THEN v_tier := 3;   -- B   35 %
-      ELSE                    v_tier := 4;   -- SB  45 %
+      IF    v_rnd < 0.05 THEN v_tier := 1;   -- PP   5 %
+      ELSIF v_rnd < 0.15 THEN v_tier := 2;   -- C   10 %
+      ELSIF v_rnd < 0.40 THEN v_tier := 3;   -- B   25 %
+      ELSE                    v_tier := 4;   -- SB  60 %
       END IF;
 
       INSERT INTO _sp_tiers (enrollment_id, student_id, assignment_id, tier)
       VALUES (v_enr.enrollment_id, v_enr.student_id, v_assignment.id, v_tier);
 
-      -- ── Target kehadiran per tier ─────────────────────────
+      -- ── Kehadiran per tier ──────────────────────────────────
+      -- PP: kehadiran sangat rendah → penyebab klasifikasi PP (bukan skor 0)
       CASE v_tier
-        WHEN 1 THEN v_rate := 0.45 + random() * 0.22;  -- 45 – 67 %
-        WHEN 2 THEN v_rate := 0.65 + random() * 0.17;  -- 65 – 82 %
-        WHEN 3 THEN v_rate := 0.82 + random() * 0.11;  -- 82 – 93 %
-        ELSE        v_rate := 0.90 + random() * 0.10;  -- 90 – 100 %
+        WHEN 1 THEN v_rate := 0.45 + random() * 0.17;  -- 45–62 %
+        WHEN 2 THEN v_rate := 0.65 + random() * 0.14;  -- 65–79 %
+        WHEN 3 THEN v_rate := 0.80 + random() * 0.12;  -- 80–92 %
+        ELSE        v_rate := 0.88 + random() * 0.12;  -- 88–100 %
       END CASE;
 
-      -- ── Absensi 6 bulan ───────────────────────────────────
       FOR j IN 1..6 LOOP
-        v_sd := v_school_days[j];
-        -- Hadir = proporsi + variasi ±1 hari
-        v_present := GREATEST(
-          0::SMALLINT,
-          LEAST(v_sd,
-            (ROUND(v_rate * v_sd) + (FLOOR(random() * 3))::INT - 1)::SMALLINT
-          )
-        );
-        v_absent := v_sd - v_present;
+        v_sd      := v_school_days[j];
+        v_present := GREATEST(0::SMALLINT, LEAST(v_sd,
+          (ROUND(v_rate * v_sd) + (FLOOR(random()*3))::INT - 1)::SMALLINT
+        ));
+        v_absent  := v_sd - v_present;
 
         INSERT INTO public.monthly_attendance
           (enrollment_id, month, year,
@@ -290,91 +278,177 @@ BEGIN
         ON CONFLICT (enrollment_id, month, year) DO NOTHING;
       END LOOP;
 
-      -- ── Inisialisasi skor perilaku ────────────────────────
+      -- ── Inisialisasi skor perilaku (initial = 75) ───────────
       INSERT INTO public.student_behavior_scores (enrollment_id, raw_score)
       VALUES (v_enr.enrollment_id, 75)
       ON CONFLICT (enrollment_id) DO NOTHING;
 
-      -- ── Jumlah transaksi per tier ─────────────────────────
+      -- ── Target skor perilaku per tier ───────────────────────
+      -- Minimum 50 untuk semua tier (tidak ada Poin Perilaku 0)
       CASE v_tier
-        WHEN 1 THEN
-          v_n_viol   := 3 + (FLOOR(random() * 3))::INT;  -- 3–5 pelanggaran
-          v_n_reward := 0;
-        WHEN 2 THEN
-          v_n_viol   := 2 + (FLOOR(random() * 2))::INT;  -- 2–3 pelanggaran
-          v_n_reward := (FLOOR(random() * 2))::INT;       -- 0–1 reward
-        WHEN 3 THEN
-          v_n_viol   := (FLOOR(random() * 3))::INT;       -- 0–2 pelanggaran
-          v_n_reward := (FLOOR(random() * 3))::INT;       -- 0–2 reward
-        ELSE
-          v_n_viol   := (FLOOR(random() * 2))::INT;       -- 0–1 pelanggaran
-          v_n_reward := 1 + (FLOOR(random() * 3))::INT;  -- 1–3 reward
+        WHEN 1 THEN v_target_score := (50 + (FLOOR(random()*14))::INT)::SMALLINT; -- 50–63
+        WHEN 2 THEN v_target_score := (64 + (FLOOR(random()*11))::INT)::SMALLINT; -- 64–74
+        WHEN 3 THEN v_target_score := (75 + (FLOOR(random()*16))::INT)::SMALLINT; -- 75–90
+        ELSE        v_target_score := (87 + (FLOOR(random()*18))::INT)::SMALLINT; -- 87–104
       END CASE;
 
-      -- ── Insert pelanggaran ────────────────────────────────
-      FOR j IN 1..v_n_viol LOOP
-        v_cat_idx := 1 + (FLOOR(random() * array_length(v_viol_ids, 1)))::INT;
-        v_cat_idx := LEAST(v_cat_idx, array_length(v_viol_ids, 1));
-        -- Tanggal acak dalam semester (15 Jan – 3 Jun 2026)
-        v_tx_date := DATE '2026-01-15' + (FLOOR(random() * 139))::INT;
+      v_total_delta := v_target_score - 75;  -- bisa negatif atau positif
 
-        INSERT INTO public.behavior_point_transactions
-          (enrollment_id, transaction_type,
-           violation_category_id, reward_category_id,
-           points_delta, transaction_date, raw_score_after,
-           recorded_by, notes)
-        VALUES
-          (v_enr.enrollment_id, 'violation'::public.transaction_type,
-           v_viol_ids[v_cat_idx], NULL,
-           -(v_viol_pts[v_cat_idx]),
-           v_tx_date, 75,
-           v_teacher_id, 'Data dummy semester genap 2025/2026');
-      END LOOP;
+      -- ── Generate transaksi pelanggaran (delta negatif) ──────
+      IF v_total_delta < 0 THEN
+        v_remaining := -v_total_delta;  -- jumlah poin yang perlu dikurangi
 
-      -- ── Insert reward ─────────────────────────────────────
-      FOR j IN 1..v_n_reward LOOP
-        v_cat_idx := 1 + (FLOOR(random() * array_length(v_reward_ids, 1)))::INT;
-        v_cat_idx := LEAST(v_cat_idx, array_length(v_reward_ids, 1));
-        v_tx_date := DATE '2026-01-15' + (FLOOR(random() * 139))::INT;
+        -- Buat 1-3 transaksi pelanggaran, tiap kali ambil kategori acak
+        i := 0;
+        WHILE v_remaining > 0 AND i < 3 LOOP
+          i := i + 1;
+          v_cat_idx := 1 + (FLOOR(random() * array_length(v_viol_ids,1)))::INT;
+          v_cat_idx := LEAST(v_cat_idx, array_length(v_viol_ids,1));
+          v_pts     := v_viol_pts[v_cat_idx];
 
-        INSERT INTO public.behavior_point_transactions
-          (enrollment_id, transaction_type,
-           violation_category_id, reward_category_id,
-           points_delta, transaction_date, raw_score_after,
-           recorded_by, notes)
-        VALUES
-          (v_enr.enrollment_id, 'reward'::public.transaction_type,
-           NULL, v_reward_ids[v_cat_idx],
-           v_reward_pts[v_cat_idx],
-           v_tx_date, 75,
-           v_teacher_id, 'Data dummy semester genap 2025/2026');
-      END LOOP;
+          -- Jika poin kategori melebihi sisa yang dibutuhkan, gunakan yang terkecil
+          IF v_pts > v_remaining THEN
+            v_cat_idx := 1;  -- kategori terkecil
+            v_pts     := v_viol_pts[1];
+          END IF;
+
+          v_tx_date := DATE '2026-01-15' + (FLOOR(random()*139))::INT;
+
+          INSERT INTO public.behavior_point_transactions
+            (enrollment_id, transaction_type,
+             violation_category_id, reward_category_id,
+             points_delta, transaction_date, raw_score_after,
+             recorded_by, notes)
+          VALUES
+            (v_enr.enrollment_id, 'violation'::public.transaction_type,
+             v_viol_ids[v_cat_idx], NULL,
+             -(v_pts), v_tx_date, 75,
+             v_teacher_id, 'Data dummy semester genap 2025/2026');
+
+          v_remaining := v_remaining - v_pts;
+        END LOOP;
+
+      -- ── Generate transaksi reward (delta positif) ────────────
+      ELSIF v_total_delta > 0 THEN
+        v_remaining := v_total_delta;
+
+        i := 0;
+        WHILE v_remaining > 0 AND i < 3 LOOP
+          i := i + 1;
+          v_cat_idx := 1 + (FLOOR(random() * array_length(v_reward_ids,1)))::INT;
+          v_cat_idx := LEAST(v_cat_idx, array_length(v_reward_ids,1));
+          v_pts     := v_reward_pts[v_cat_idx];
+
+          IF v_pts > v_remaining THEN
+            v_cat_idx := 1;
+            v_pts     := v_reward_pts[1];
+          END IF;
+
+          v_tx_date := DATE '2026-01-15' + (FLOOR(random()*139))::INT;
+
+          INSERT INTO public.behavior_point_transactions
+            (enrollment_id, transaction_type,
+             violation_category_id, reward_category_id,
+             points_delta, transaction_date, raw_score_after,
+             recorded_by, notes)
+          VALUES
+            (v_enr.enrollment_id, 'reward'::public.transaction_type,
+             NULL, v_reward_ids[v_cat_idx],
+             v_pts, v_tx_date, 75,
+             v_teacher_id, 'Data dummy semester genap 2025/2026');
+
+          v_remaining := v_remaining - v_pts;
+        END LOOP;
+      END IF;
+      -- Jika v_total_delta = 0: tidak ada transaksi → skor tetap 75
 
       v_total := v_total + 1;
-    END LOOP; -- end loop siswa
+    END LOOP;
+  END LOOP;
 
-  END LOOP; -- end loop kelas
-
-  RAISE NOTICE '✓ Blok 3 selesai: % siswa diproses (absensi + poin perilaku)', v_total;
+  RAISE NOTICE '✓ Blok 3 selesai: % siswa diproses', v_total;
 END $$;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
--- BLOK 4: Buat sesi peer review (status = in_progress)
+-- BLOK 3b: Jaminan keamanan — pastikan tidak ada skor di bawah 50
+-- Trigger tidak update skor saat DELETE, jadi ada kemungkinan skor
+-- tidak sesuai target jika kategori tidak cukup granular.
+-- ────────────────────────────────────────────────────────────────────────────
+
+DO $$
+DECLARE
+  v_period_id  UUID;
+  v_reward_id  UUID;
+  v_fallback   UUID;
+  v_enr        RECORD;
+  v_gap        SMALLINT;
+  v_fixed      INT := 0;
+BEGIN
+  SELECT id INTO v_period_id FROM public.academic_periods WHERE status='active' LIMIT 1;
+
+  SELECT id INTO v_fallback FROM public.profiles WHERE role='admin' LIMIT 1;
+  IF v_fallback IS NULL THEN
+    SELECT id INTO v_fallback FROM public.profiles WHERE role='teacher' LIMIT 1;
+  END IF;
+
+  -- Gunakan reward kategori terkecil untuk koreksi
+  SELECT id INTO v_reward_id FROM public.reward_categories
+  WHERE is_active = TRUE ORDER BY point_addition LIMIT 1;
+
+  FOR v_enr IN
+    SELECT sbs.enrollment_id,
+           sbs.raw_score,
+           COALESCE(cpa.homeroom_teacher_id, v_fallback) AS teacher_id
+    FROM   public.student_behavior_scores sbs
+    JOIN   public.student_class_enrollments sce
+           ON sce.id = sbs.enrollment_id
+    JOIN   public.class_period_assignments cpa
+           ON cpa.id = sce.class_period_assignment_id
+    WHERE  cpa.period_id = v_period_id
+    AND    sbs.raw_score < 50
+  LOOP
+    v_gap := (50 - v_enr.raw_score)::SMALLINT;
+
+    -- Satu transaksi reward untuk mendorong skor ke 50
+    INSERT INTO public.behavior_point_transactions
+      (enrollment_id, transaction_type,
+       violation_category_id, reward_category_id,
+       points_delta, transaction_date, raw_score_after,
+       recorded_by, notes)
+    VALUES
+      (v_enr.enrollment_id, 'reward'::public.transaction_type,
+       NULL, v_reward_id,
+       v_gap, DATE '2026-03-01', 50,
+       v_enr.teacher_id, 'Data dummy semester genap 2025/2026');
+
+    v_fixed := v_fixed + 1;
+  END LOOP;
+
+  IF v_fixed > 0 THEN
+    RAISE NOTICE '✓ Blok 3b: % siswa skor-nya dikoreksi ke minimum 50', v_fixed;
+  ELSE
+    RAISE NOTICE '✓ Blok 3b: tidak ada skor di bawah 50, semua aman';
+  END IF;
+END $$;
+
+
+-- ────────────────────────────────────────────────────────────────────────────
+-- BLOK 4: Buat sesi peer review (status = active)
 -- ────────────────────────────────────────────────────────────────────────────
 
 INSERT INTO public.peer_review_sessions
   (class_period_assignment_id, status, opened_at, opened_by)
 SELECT
   cpa.id,
-  'in_progress'::public.peer_review_status,
+  'active'::public.peer_review_status,
   '2026-04-01 08:00:00+07'::TIMESTAMPTZ,
   COALESCE(cpa.homeroom_teacher_id,
     (SELECT id FROM public.profiles WHERE role = 'admin' LIMIT 1))
 FROM public.class_period_assignments cpa
 WHERE cpa.period_id = (SELECT id FROM public.academic_periods WHERE status = 'active')
 ON CONFLICT (class_period_assignment_id) DO UPDATE
-  SET status    = 'in_progress',
+  SET status    = 'active',
       opened_at = EXCLUDED.opened_at,
       opened_by = EXCLUDED.opened_by,
       closed_at = NULL,
@@ -383,12 +457,11 @@ ON CONFLICT (class_period_assignment_id) DO UPDATE
 
 -- ────────────────────────────────────────────────────────────────────────────
 -- BLOK 5: Bulk insert submisi peer review
--- Setiap siswa menilai semua teman sekelasnya.
--- Skor per aspek didasarkan pada tier reviewee (siswa yang dinilai).
---   Tier 1 (PP) : skor 1–3
---   Tier 2 (C)  : skor 2–4
---   Tier 3 (B)  : skor 3–5
---   Tier 4 (SB) : skor 4–5
+-- Skor per aspek berdasarkan tier reviewee:
+--   PP  (tier 1): 1–2  → X3 ≈ 20–40  (rendah, mendukung klasifikasi PP)
+--   C   (tier 2): 2–4  → X3 ≈ 40–80
+--   B   (tier 3): 3–5  → X3 ≈ 60–100
+--   SB  (tier 4): 4–5  → X3 ≈ 80–100
 -- ────────────────────────────────────────────────────────────────────────────
 
 INSERT INTO public.peer_review_submissions
@@ -396,45 +469,39 @@ INSERT INTO public.peer_review_submissions
    score_courtesy, score_cooperation, score_empathy,
    score_honesty, score_responsibility, submitted_at)
 SELECT
-  prs.id                           AS session_id,
-  reviewer.student_id              AS reviewer_id,
-  reviewee.student_id              AS reviewee_id,
-  -- 5 skor independen berdasarkan tier reviewee
-  GREATEST(1, LEAST(5,
-    (CASE t.tier
-       WHEN 1 THEN 1 + (FLOOR(random() * 3))::INT
-       WHEN 2 THEN 2 + (FLOOR(random() * 3))::INT
-       WHEN 3 THEN 3 + (FLOOR(random() * 3))::INT
-       ELSE       4 + (FLOOR(random() * 2))::INT
-     END)::SMALLINT))              AS score_courtesy,
-  GREATEST(1, LEAST(5,
-    (CASE t.tier
-       WHEN 1 THEN 1 + (FLOOR(random() * 3))::INT
-       WHEN 2 THEN 2 + (FLOOR(random() * 3))::INT
-       WHEN 3 THEN 3 + (FLOOR(random() * 3))::INT
-       ELSE       4 + (FLOOR(random() * 2))::INT
-     END)::SMALLINT))              AS score_cooperation,
-  GREATEST(1, LEAST(5,
-    (CASE t.tier
-       WHEN 1 THEN 1 + (FLOOR(random() * 3))::INT
-       WHEN 2 THEN 2 + (FLOOR(random() * 3))::INT
-       WHEN 3 THEN 3 + (FLOOR(random() * 3))::INT
-       ELSE       4 + (FLOOR(random() * 2))::INT
-     END)::SMALLINT))              AS score_empathy,
-  GREATEST(1, LEAST(5,
-    (CASE t.tier
-       WHEN 1 THEN 1 + (FLOOR(random() * 3))::INT
-       WHEN 2 THEN 2 + (FLOOR(random() * 3))::INT
-       WHEN 3 THEN 3 + (FLOOR(random() * 3))::INT
-       ELSE       4 + (FLOOR(random() * 2))::INT
-     END)::SMALLINT))              AS score_honesty,
-  GREATEST(1, LEAST(5,
-    (CASE t.tier
-       WHEN 1 THEN 1 + (FLOOR(random() * 3))::INT
-       WHEN 2 THEN 2 + (FLOOR(random() * 3))::INT
-       WHEN 3 THEN 3 + (FLOOR(random() * 3))::INT
-       ELSE       4 + (FLOOR(random() * 2))::INT
-     END)::SMALLINT))              AS score_responsibility,
+  prs.id                                               AS session_id,
+  reviewer.student_id                                  AS reviewer_id,
+  reviewee.student_id                                  AS reviewee_id,
+  GREATEST(1, LEAST(5, (CASE t.tier
+    WHEN 1 THEN 1 + (FLOOR(random()*2))::INT   -- 1–2
+    WHEN 2 THEN 2 + (FLOOR(random()*3))::INT   -- 2–4
+    WHEN 3 THEN 3 + (FLOOR(random()*3))::INT   -- 3–5
+    ELSE       4 + (FLOOR(random()*2))::INT    -- 4–5
+  END)::SMALLINT)) AS score_courtesy,
+  GREATEST(1, LEAST(5, (CASE t.tier
+    WHEN 1 THEN 1 + (FLOOR(random()*2))::INT
+    WHEN 2 THEN 2 + (FLOOR(random()*3))::INT
+    WHEN 3 THEN 3 + (FLOOR(random()*3))::INT
+    ELSE       4 + (FLOOR(random()*2))::INT
+  END)::SMALLINT)) AS score_cooperation,
+  GREATEST(1, LEAST(5, (CASE t.tier
+    WHEN 1 THEN 1 + (FLOOR(random()*2))::INT
+    WHEN 2 THEN 2 + (FLOOR(random()*3))::INT
+    WHEN 3 THEN 3 + (FLOOR(random()*3))::INT
+    ELSE       4 + (FLOOR(random()*2))::INT
+  END)::SMALLINT)) AS score_empathy,
+  GREATEST(1, LEAST(5, (CASE t.tier
+    WHEN 1 THEN 1 + (FLOOR(random()*2))::INT
+    WHEN 2 THEN 2 + (FLOOR(random()*3))::INT
+    WHEN 3 THEN 3 + (FLOOR(random()*3))::INT
+    ELSE       4 + (FLOOR(random()*2))::INT
+  END)::SMALLINT)) AS score_honesty,
+  GREATEST(1, LEAST(5, (CASE t.tier
+    WHEN 1 THEN 1 + (FLOOR(random()*2))::INT
+    WHEN 2 THEN 2 + (FLOOR(random()*3))::INT
+    WHEN 3 THEN 3 + (FLOOR(random()*3))::INT
+    ELSE       4 + (FLOOR(random()*2))::INT
+  END)::SMALLINT)) AS score_responsibility,
   '2026-05-15 09:00:00+07'::TIMESTAMPTZ AS submitted_at
 FROM       _sp_tiers reviewee
 JOIN       _sp_tiers reviewer
@@ -442,16 +509,13 @@ JOIN       _sp_tiers reviewer
        AND reviewer.student_id   <> reviewee.student_id
 JOIN       public.peer_review_sessions prs
         ON prs.class_period_assignment_id = reviewee.assignment_id
--- join kembali untuk skor: gunakan tier reviewee
 JOIN       _sp_tiers t
         ON t.enrollment_id = reviewee.enrollment_id
 ON CONFLICT (session_id, reviewer_id, reviewee_id) DO NOTHING;
 
 
 -- ────────────────────────────────────────────────────────────────────────────
--- BLOK 6: Tutup semua sesi peer review
--- Trigger trg_peer_session_close_calc_x3 otomatis menghitung X3
--- untuk setiap siswa berdasarkan submisi yang sudah masuk.
+-- BLOK 6: Tutup sesi → trigger hitung X3 otomatis
 -- ────────────────────────────────────────────────────────────────────────────
 
 UPDATE public.peer_review_sessions prs
@@ -464,28 +528,23 @@ SET    status    = 'closed',
 FROM   public.class_period_assignments cpa
 WHERE  cpa.id        = prs.class_period_assignment_id
 AND    cpa.period_id = (SELECT id FROM public.academic_periods WHERE status = 'active')
-AND    prs.status    = 'in_progress';
+AND    prs.status    = 'active';
 
 
 -- ────────────────────────────────────────────────────────────────────────────
--- BLOK 7: Hitung nilai fuzzy Mamdani Z* dan simpan ke behavior_final_scores
+-- BLOK 7: Hitung nilai fuzzy Z* → behavior_final_scores
 -- ────────────────────────────────────────────────────────────────────────────
 
 WITH inputs AS (
   SELECT
     sce.id AS enrollment_id,
-    -- X1 = persentase kehadiran (0–100)
     ROUND(
       COALESCE(SUM(ma.present_days), 0)::NUMERIC
-      / NULLIF(SUM(ma.effective_days), 0) * 100.0,
-      2
-    )                                                         AS x1,
-    -- X2 = skor perilaku dikap 100
-    LEAST(COALESCE(MAX(sbs.raw_score), 75), 100)::NUMERIC     AS x2,
-    -- raw_x2 tanpa cap
-    COALESCE(MAX(sbs.raw_score), 75)::SMALLINT                AS raw_x2,
-    -- X3 = nilai peer review (0–100), 0 jika belum ada
-    COALESCE(MAX(x3s.x3_score), 0)::NUMERIC                   AS x3
+      / NULLIF(SUM(ma.effective_days), 0) * 100.0, 2
+    )                                                          AS x1,
+    GREATEST(0, LEAST(COALESCE(MAX(sbs.raw_score), 75), 100))::NUMERIC AS x2,
+    COALESCE(MAX(sbs.raw_score), 75)::SMALLINT                 AS raw_x2,
+    COALESCE(MAX(x3s.x3_score), 0)::NUMERIC                    AS x3
   FROM       public.student_class_enrollments   sce
   JOIN       public.class_period_assignments    cpa
           ON cpa.id = sce.class_period_assignment_id
@@ -502,17 +561,14 @@ WITH inputs AS (
   GROUP  BY sce.id
 ),
 scored AS (
-  SELECT
-    enrollment_id,
-    x1, x2, raw_x2, x3,
-    _sp_zstar(x1, x2, x3) AS z_star
-  FROM inputs
+  SELECT enrollment_id, x1, x2, raw_x2, x3,
+         _sp_zstar(x1, x2, x3) AS z_star
+  FROM   inputs
 )
 INSERT INTO public.behavior_final_scores
   (enrollment_id, x1, x2, raw_x2, x3, z_star, category, computed_at)
 SELECT
-  enrollment_id,
-  x1, x2, raw_x2, x3, z_star,
+  enrollment_id, x1, x2, raw_x2, x3, z_star,
   CASE WHEN z_star >= 85 THEN 'sangat_baik'
        WHEN z_star >= 70 THEN 'baik'
        WHEN z_star >= 55 THEN 'cukup'
@@ -532,7 +588,7 @@ ON CONFLICT (enrollment_id) DO UPDATE SET
 
 
 -- ────────────────────────────────────────────────────────────────────────────
--- BLOK 8: Bersihkan fungsi bantu sementara
+-- BLOK 8: Bersihkan fungsi bantu
 -- ────────────────────────────────────────────────────────────────────────────
 
 DROP FUNCTION IF EXISTS _sp_zstar(NUMERIC, NUMERIC, NUMERIC);
@@ -543,28 +599,24 @@ DROP FUNCTION IF EXISTS _sp_tr(NUMERIC, NUMERIC, NUMERIC);
 COMMIT;
 
 -- ────────────────────────────────────────────────────────────────────────────
--- VERIFIKASI (opsional, jalankan setelah commit)
+-- VERIFIKASI (jalankan setelah commit)
 -- ────────────────────────────────────────────────────────────────────────────
 /*
-SELECT
-  bfs.category,
-  COUNT(*) AS jumlah,
-  ROUND(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER (), 1) AS persen
+SELECT category,
+       COUNT(*) AS jumlah,
+       ROUND(COUNT(*)*100.0 / SUM(COUNT(*)) OVER(), 1) AS persen
 FROM public.behavior_final_scores bfs
 JOIN public.student_class_enrollments sce ON sce.id = bfs.enrollment_id
-JOIN public.class_period_assignments cpa  ON cpa.id = sce.class_period_assignment_id
-WHERE cpa.period_id = (SELECT id FROM public.academic_periods WHERE status = 'active')
-GROUP BY bfs.category
-ORDER BY bfs.category;
+JOIN public.class_period_assignments  cpa ON cpa.id = sce.class_period_assignment_id
+WHERE cpa.period_id = (SELECT id FROM public.academic_periods WHERE status='active')
+GROUP BY category ORDER BY category;
 
-SELECT
-  ROUND(AVG(x1), 1) AS avg_x1,
-  ROUND(AVG(x2), 1) AS avg_x2,
-  ROUND(AVG(x3), 1) AS avg_x3,
-  ROUND(AVG(z_star), 1) AS avg_zstar,
-  COUNT(*) AS total_siswa
+-- Cek tidak ada x2 = 0
+SELECT COUNT(*) AS siswa_x2_nol
 FROM public.behavior_final_scores bfs
 JOIN public.student_class_enrollments sce ON sce.id = bfs.enrollment_id
-JOIN public.class_period_assignments cpa  ON cpa.id = sce.class_period_assignment_id
-WHERE cpa.period_id = (SELECT id FROM public.academic_periods WHERE status = 'active');
+JOIN public.class_period_assignments  cpa ON cpa.id = sce.class_period_assignment_id
+WHERE cpa.period_id = (SELECT id FROM public.academic_periods WHERE status='active')
+AND   bfs.x2 = 0;
+-- Harus 0
 */

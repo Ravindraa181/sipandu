@@ -49,7 +49,7 @@ export function CategoryDistributionChart({
                 />
               </div>
               <div className="w-20 text-xs text-muted-foreground">
-                {count} ({percent.toFixed(0)}%)
+                {count} ({percent.toFixed(1)}%)
               </div>
             </div>
           );
@@ -69,7 +69,7 @@ export function CategoryDistributionChart({
             />
           </div>
           <div className="w-20 text-xs text-muted-foreground">
-            {notScoredCount} ({((notScoredCount / total) * 100).toFixed(0)}%)
+            {notScoredCount} ({((notScoredCount / total) * 100).toFixed(1)}%)
           </div>
         </div>
       )}
