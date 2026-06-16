@@ -17,7 +17,7 @@
 import { redirect } from 'next/navigation';
 import { CheckCircle, Circle, CircleCheck, Info, Loader2 } from 'lucide-react';
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { getTeacherAssignment, type TeacherStudent } from '@/lib/teacher/getAssignment';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { ROUTES } from '@/constants';
@@ -52,10 +52,13 @@ interface PageData {
   rows: ProgressRow[];
 }
 
+const PEER_REVIEW_SUBSET_SIZE = 5;
+
 async function loadData(): Promise<PageData> {
   const assignment = await getTeacherAssignment();
   if (!assignment) redirect(ROUTES.waiting);
   const supabase = await createClient();
+  const admin = createServiceRoleClient();
 
   // ── 1. Sesi peer review ─────────────────────────────────────────
   const { data: session } = await supabase
@@ -78,7 +81,27 @@ async function loadData(): Promise<PageData> {
   }
 
   // ── 2. Progress per reviewer (siswa) ────────────────────────────
-  const totalAssigned = Math.max(0, assignment.students.length - 1);
+  // Ambil jumlah assignment per reviewer dari tabel peer_review_assignments.
+  // Jika sesi belum ada, gunakan konstanta PEER_REVIEW_SUBSET_SIZE sebagai default.
+  const assignmentCountPerReviewer = new Map<string, number>();
+  if (session) {
+    const { data: assignRows } = await admin
+      .from('peer_review_assignments' as any)
+      .select('reviewer_id')
+      .eq('session_id', session.id as string);
+
+    for (const row of ((assignRows ?? []) as unknown as { reviewer_id: string }[])) {
+      assignmentCountPerReviewer.set(
+        row.reviewer_id,
+        (assignmentCountPerReviewer.get(row.reviewer_id) ?? 0) + 1,
+      );
+    }
+  }
+
+  const defaultSubset = Math.min(
+    PEER_REVIEW_SUBSET_SIZE,
+    Math.max(0, assignment.students.length - 1),
+  );
 
   // FIX: tipe eksplisit (s: TeacherStudent) agar tidak implicitly any
   const studentIds = assignment.students.map((s: TeacherStudent) => s.studentId);
@@ -127,6 +150,9 @@ async function loadData(): Promise<PageData> {
   // FIX: tipe eksplisit (s: TeacherStudent)
   const rows: ProgressRow[] = assignment.students.map((s: TeacherStudent) => {
     const submitted = reviewerCount.get(s.studentId) ?? 0;
+    // Gunakan jumlah assignment aktual per siswa; fallback ke defaultSubset
+    const totalAssigned =
+      assignmentCountPerReviewer.get(s.studentId) ?? defaultSubset;
     const myScores = revieweeScores.get(s.studentId) ?? [];
     const x3Tentative =
       myScores.length > 0
