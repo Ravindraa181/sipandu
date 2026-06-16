@@ -356,16 +356,42 @@ const openPeerSessionSchema = z.object({
   deadline: z.string().date(),
 });
 
+/** Jumlah teman yang ditugaskan secara acak per siswa. */
+const PEER_REVIEW_SUBSET_SIZE = 5;
+
 /**
- * Buka sesi peer review baru.
- * PATCH: kolom yang benar adalah `opened_by` dan `opened_at` (bukan `created_by`).
- * Schema peer_review_sessions memiliki UNIQUE constraint pada
- * class_period_assignment_id — hanya boleh 1 sesi per kelas per periode.
- * Jika sesi sudah ada (status apapun), UPDATE status + deadline daripada INSERT baru.
+ * Fisher-Yates shuffle deterministik menggunakan seed string.
+ * Menghasilkan urutan acak yang berbeda per siswa (seed = sessionId + studentId),
+ * tapi tetap konsisten setiap kali fungsi dipanggil dengan seed yang sama.
+ */
+function seededShuffle<T>(arr: T[], seed: string): T[] {
+  const result = [...arr];
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) {
+    h = Math.imul(31, h) + seed.charCodeAt(i) | 0;
+  }
+  for (let i = result.length - 1; i > 0; i--) {
+    h = Math.imul(h ^ (h >>> 16), 0x45d9f3b) | 0;
+    h = Math.imul(h ^ (h >>> 16), 0x45d9f3b) | 0;
+    const j = Math.abs(h) % (i + 1);
+    [result[i], result[j]] = [result[j]!, result[i]!];
+  }
+  return result;
+}
+
+/**
+ * Buka sesi peer review dan generate assignment acak (5 teman per siswa).
+ *
+ * Alur:
+ *  1. INSERT/UPDATE peer_review_sessions → status 'active'
+ *  2. Hapus assignment lama (jika sesi dibuka ulang)
+ *  3. Ambil semua siswa aktif di kelas
+ *  4. Untuk setiap siswa: acak daftar teman, ambil PEER_REVIEW_SUBSET_SIZE pertama
+ *  5. Bulk INSERT ke peer_review_assignments
  */
 export async function openPeerSession(
   input: z.infer<typeof openPeerSessionSchema>,
-): Promise<ActionResult<{ sessionId: string }>> {
+): Promise<ActionResult<{ sessionId: string; assignedCount: number }>> {
   try {
     const parsed = openPeerSessionSchema.parse(input);
     const assignment = await getAssignmentContext();
@@ -378,7 +404,7 @@ export async function openPeerSession(
     const admin = createServiceRoleClient();
     const now = new Date().toISOString();
 
-    // Cek apakah sesi sudah ada (UNIQUE constraint — hanya 1 per assignment)
+    // ── 1. Cek / buat sesi ───────────────────────────────────────────
     const { data: existing } = await admin
       .from('peer_review_sessions')
       .select('id, status')
@@ -392,7 +418,6 @@ export async function openPeerSession(
     let sessionId: string;
 
     if (existing) {
-      // ALASAN: UNIQUE constraint mencegah INSERT kedua — gunakan UPDATE saja
       const { error } = await admin
         .from('peer_review_sessions')
         .update({
@@ -409,7 +434,6 @@ export async function openPeerSession(
       if (error) return { ok: false, error: error.message };
       sessionId = existing.id as string;
     } else {
-      // Belum ada sesi sama sekali — INSERT baru
       const { data: session, error } = await admin
         .from('peer_review_sessions')
         .insert({
@@ -417,7 +441,7 @@ export async function openPeerSession(
           deadline: parsed.deadline,
           status: 'active',
           opened_at: now,
-          opened_by: assignment.teacherId,  // PATCH: bukan created_by
+          opened_by: assignment.teacherId,
         } as any)
         .select('id')
         .single();
@@ -428,8 +452,52 @@ export async function openPeerSession(
       sessionId = session.id as string;
     }
 
+    // ── 2. Hapus assignment lama (jika sesi dibuka ulang) ────────────
+    await admin
+      .from('peer_review_assignments' as any)
+      .delete()
+      .eq('session_id', sessionId);
+
+    // ── 3. Ambil semua siswa aktif di kelas ──────────────────────────
+    const { data: enrolls, error: enrollErr } = await admin
+      .from('student_class_enrollments')
+      .select('student_id')
+      .eq('class_period_assignment_id', parsed.assignmentId)
+      .eq('status', 'active');
+
+    if (enrollErr || !enrolls || enrolls.length < 2) {
+      revalidatePath('/dashboard/peer-review');
+      return { ok: true, data: { sessionId, assignedCount: 0 } };
+    }
+
+    const studentIds = (enrolls as { student_id: string }[]).map((e) => e.student_id);
+    const subsetSize = Math.min(PEER_REVIEW_SUBSET_SIZE, studentIds.length - 1);
+
+    // ── 4. Generate assignment acak per siswa ────────────────────────
+    const assignmentRows: { session_id: string; reviewer_id: string; reviewee_id: string }[] = [];
+
+    for (const reviewerId of studentIds) {
+      const candidates = studentIds.filter((id) => id !== reviewerId);
+      // Seed berbeda per reviewer → urutan acak berbeda antar siswa
+      const shuffled = seededShuffle(candidates, `${sessionId}-${reviewerId}`);
+      const assigned = shuffled.slice(0, subsetSize);
+
+      for (const revieweeId of assigned) {
+        assignmentRows.push({ session_id: sessionId, reviewer_id: reviewerId, reviewee_id: revieweeId });
+      }
+    }
+
+    // ── 5. Bulk INSERT assignments ────────────────────────────────────
+    const { error: assignErr } = await admin
+      .from('peer_review_assignments' as any)
+      .insert(assignmentRows);
+
+    if (assignErr) {
+      return { ok: false, error: `Gagal membuat assignment: ${assignErr.message}` };
+    }
+
     revalidatePath('/dashboard/peer-review');
-    return { ok: true, data: { sessionId } };
+    return { ok: true, data: { sessionId, assignedCount: studentIds.length } };
   } catch (err) {
     return { ok: false, error: err instanceof Error ? err.message : 'Error tidak diketahui' };
   }

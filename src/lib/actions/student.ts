@@ -2,14 +2,11 @@
  * @file lib/actions/student.ts
  * @description Server Actions untuk role Siswa SiPandu.
  *
- *  Patch 7.7.3 sudah diterapkan — nama kolom DB yang benar:
- *   - peer_review_sessions      → class_period_assignment_id (bukan class_period_assignment_id)
- *   - student_class_enrollments → class_period_assignment_id
- *
- *  Opsi A untuk savePeerReviewDraft (rekomendasi panduan):
- *   Fungsi ini TIDAK diimplementasikan — draft dipertahankan di state
- *   browser (Zustand / useState) saja, sehingga tidak perlu kolom
- *   draft_data di DB.
+ *  v2 — Random Subset Assignment:
+ *   Peer review kini menggunakan tabel peer_review_assignments.
+ *   Setiap siswa hanya menilai 5 teman yang ditugaskan sistem saat sesi dibuka.
+ *   Tabel peer_review_assignments di-query sebagai sumber daftar reviewee,
+ *   menggantikan logika "semua teman sekelas".
  */
 
 'use server';
@@ -18,10 +15,6 @@ import { z } from 'zod';
 
 import { createClient, createServiceRoleClient } from '@/lib/supabase/server';
 import { getStudentContext } from '@/lib/student/getStudentContext';
-
-/* ─────────────────────────────────────────────────────────────────────
- *  Tipe kembalian standar
- * ───────────────────────────────────────────────────────────────────── */
 
 type ActionResult<T = undefined> =
   | { ok: true; data?: T }
@@ -48,17 +41,9 @@ const submitRatingSchema = z.object({
 /**
  * Submit atau perbarui penilaian peer review satu siswa.
  *
- * Alur:
- *  1. Validasi sesi aktif & deadline.
- *  2. Validasi reviewer & reviewee sekelas (via class_period_assignment_id).
- *  3. Cek apakah sudah pernah submit:
- *     - Belum → INSERT baru + increment progress.
- *     - Sudah  → UPDATE skor (service role) + jangan ubah progress.
- *  4. INSERT/UPDATE ke peer_review_submissions.
- *  5. UPSERT peer_review_progress reviewer.
- *
- * Patch: gunakan `class_period_assignment_id` (bukan `class_period_assignment_id`)
- *        saat join student_class_enrollments → peer_review_sessions.
+ * v2: Validasi reviewee menggunakan peer_review_assignments (bukan cek
+ * keanggotaan kelas umum). Reviewer hanya boleh menilai teman yang
+ * memang ditugaskan kepadanya oleh sistem.
  */
 export async function submitPeerReviewRating(
   input: z.infer<typeof submitRatingSchema>,
@@ -68,7 +53,6 @@ export async function submitPeerReviewRating(
     const supabase = await createClient();
     const admin = await createServiceRoleClient();
 
-    // Ambil student context (reviewer)
     const ctx = await getStudentContext();
     if (!ctx) return { ok: false, error: 'Sesi siswa tidak ditemukan, silakan login ulang' };
 
@@ -81,7 +65,7 @@ export async function submitPeerReviewRating(
     // 1. Validasi sesi: aktif & deadline belum lewat
     const { data: session, error: sErr } = await supabase
       .from('peer_review_sessions')
-      .select('id, status, deadline, class_period_assignment_id')  // PATCH
+      .select('id, status, deadline, class_period_assignment_id')
       .eq('id', parsed.sessionId)
       .maybeSingle();
 
@@ -98,29 +82,20 @@ export async function submitPeerReviewRating(
       }
     }
 
-    const assignmentId = session.class_period_assignment_id as string;  // PATCH
+    // 2. Validasi: reviewee harus ada di assignment reviewer ini
+    const { data: assignmentCheck } = await admin
+      .from('peer_review_assignments' as any)
+      .select('id')
+      .eq('session_id', parsed.sessionId)
+      .eq('reviewer_id', reviewerId)
+      .eq('reviewee_id', parsed.revieweeId)
+      .maybeSingle();
 
-    // 2. Validasi reviewer & reviewee sekelas
-    const { data: enrolls, error: eErr } = await admin
-      .from('student_class_enrollments')
-      .select('student_id')
-      .eq('class_period_assignment_id', assignmentId)               // PATCH
-      .eq('status', 'active')
-      .in('student_id', [reviewerId, parsed.revieweeId]);
-
-    if (eErr) {
-      return { ok: false, error: `Gagal validasi keanggotaan kelas: ${eErr.message}` };
-    }
-
-    const memberIds = new Set(
-      (enrolls ?? []).map((e) => (e as { student_id: string }).student_id),
-    );
-    if (!memberIds.has(reviewerId) || !memberIds.has(parsed.revieweeId)) {
-      return { ok: false, error: 'Reviewer dan reviewee harus berada di kelas yang sama' };
+    if (!assignmentCheck) {
+      return { ok: false, error: 'Teman ini tidak ada dalam daftar tugasmu' };
     }
 
     // 3. Cek apakah sudah pernah submit untuk reviewee ini
-    // ALASAN: service role wajib — RLS memblokir SELECT peer_review_submissions untuk siswa
     const { data: existing } = await admin
       .from('peer_review_submissions')
       .select('id')
@@ -139,8 +114,6 @@ export async function submitPeerReviewRating(
     };
 
     if (isEdit) {
-      // 4a. UPDATE submission yang sudah ada (koreksi nilai)
-      // ALASAN: siswa tidak punya UPDATE policy → service role wajib
       const { error: uErr } = await admin
         .from('peer_review_submissions')
         .update({ ...scorePayload, submitted_at: new Date().toISOString() })
@@ -150,7 +123,6 @@ export async function submitPeerReviewRating(
         return { ok: false, error: `Gagal memperbarui penilaian: ${uErr.message}` };
       }
     } else {
-      // 4b. INSERT submission baru
       const { error: iErr } = await admin.from('peer_review_submissions').insert({
         session_id: parsed.sessionId,
         reviewer_id: reviewerId,
@@ -163,9 +135,16 @@ export async function submitPeerReviewRating(
       }
     }
 
-    // 5. Update progress reviewer (hanya untuk submit baru, bukan edit)
-    // ALASAN: progress sudah dihitung saat submit pertama — jangan increment dua kali
-    const totalCount = Math.max(memberIds.size - 1, 0);
+    // 4. Update progress (ambil total dari jumlah assignment, bukan N-1)
+    const { data: allAssignedRaw } = await admin
+      .from('peer_review_assignments' as any)
+      .select('reviewee_id')
+      .eq('session_id', parsed.sessionId)
+      .eq('reviewer_id', reviewerId);
+
+    const allAssigned = (allAssignedRaw ?? []) as unknown as { reviewee_id: string }[];
+    const totalCount = allAssigned.length;
+
     if (!isEdit) {
       const { data: progress } = await admin
         .from('peer_review_progress')
@@ -182,7 +161,7 @@ export async function submitPeerReviewRating(
             completed_count: Math.min(completedCount + 1, totalCount),
             last_updated: new Date().toISOString(),
           })
-          .eq('id', progress.id as string);
+          .eq('id', (progress as { id: string }).id);
       } else {
         await admin.from('peer_review_progress').insert({
           session_id: parsed.sessionId,
@@ -193,14 +172,14 @@ export async function submitPeerReviewRating(
       }
     }
 
-    // 6. Hitung X3 parsial untuk reviewee
+    // 5. Hitung X3 parsial untuk reviewee
     await recomputePartialX3(admin, parsed.sessionId, parsed.revieweeId);
 
-    // 7. Tentukan reviewee berikutnya (hanya relevan saat submit baru, bukan edit)
-    const allCandidates = Array.from(memberIds).filter((id) => id !== reviewerId);
+    // 6. Tentukan reviewee berikutnya dari daftar assignment
+    const assignedIds = allAssigned.map((a) => a.reviewee_id);
     const nextRevieweeId = isEdit
-      ? null  // Saat edit: tetap di reviewee yang sama, tidak maju
-      : await pickNextReviewee(admin, parsed.sessionId, reviewerId, allCandidates);
+      ? null
+      : await pickNextReviewee(admin, parsed.sessionId, reviewerId, assignedIds);
 
     return { ok: true, data: { nextRevieweeId, isEdit } };
   } catch (err) {
@@ -213,8 +192,8 @@ export async function submitPeerReviewRating(
  * ═══════════════════════════════════════════════════════════════════ */
 
 /**
- * Ambil sesi peer review aktif untuk kelas siswa.
- * Patch: join lewat `class_period_assignment_id` (bukan `class_period_assignment_id`).
+ * Ambil sesi peer review aktif + daftar reviewee yang ditugaskan ke siswa ini.
+ * v2: menggunakan peer_review_assignments, bukan seluruh anggota kelas.
  */
 export async function getActivePeerSession(): Promise<
   ActionResult<{
@@ -232,34 +211,28 @@ export async function getActivePeerSession(): Promise<
     const supabase = await createClient();
     const admin = await createServiceRoleClient();
 
-    // Cari sesi aktif di assignment kelas siswa
     const { data: session } = await supabase
       .from('peer_review_sessions')
-      .select('id, status, deadline, class_period_assignment_id')  // PATCH
-      .eq('class_period_assignment_id', ctx.assignmentId)          // PATCH
+      .select('id, status, deadline, class_period_assignment_id')
+      .eq('class_period_assignment_id', ctx.assignmentId)
       .eq('status', 'active')
       .maybeSingle();
 
     if (!session) return { ok: false, error: 'Tidak ada sesi peer review aktif' };
 
-    // Ambil daftar teman sekelas
-    const { data: enrolls } = await admin
-      .from('student_class_enrollments')
-      .select('student_id, profiles!inner(full_name)')
-      .eq('class_period_assignment_id', ctx.assignmentId)          // PATCH
-      .eq('status', 'active')
-      .neq('student_id', ctx.studentId);
+    // Ambil hanya reviewee yang ditugaskan ke siswa ini
+    const { data: assignedRaw } = await admin
+      .from('peer_review_assignments' as any)
+      .select('reviewee_id, profiles!reviewee_id(full_name)')
+      .eq('session_id', session.id as string)
+      .eq('reviewer_id', ctx.studentId);
 
-    type EnrollRow = { student_id: string; profiles: { full_name: string } };
-    const classmates = (enrolls ?? []).map((e) => {
-      const row = e as unknown as EnrollRow;
-      return {
-        id: row.student_id,
-        fullName: row.profiles.full_name,
-      };
-    });
+    type AssignRow = { reviewee_id: string; profiles: { full_name: string } };
+    const classmates = ((assignedRaw ?? []) as unknown as AssignRow[]).map((a) => ({
+      id: a.reviewee_id,
+      fullName: a.profiles?.full_name ?? 'Unknown',
+    }));
 
-    // Ambil submission yang sudah dilakukan
     const { data: submitted } = await admin
       .from('peer_review_submissions')
       .select('reviewee_id')
@@ -270,7 +243,6 @@ export async function getActivePeerSession(): Promise<
       (s) => (s as { reviewee_id: string }).reviewee_id,
     );
 
-    // Progress
     const { data: prog } = await admin
       .from('peer_review_progress')
       .select('completed_count, total_count')
@@ -355,16 +327,16 @@ async function recomputePartialX3(
 }
 
 /* ─────────────────────────────────────────────────────────────────────
- *  Helper: pilih reviewee berikutnya
+ *  Helper: pilih reviewee berikutnya dari daftar assignment
  * ───────────────────────────────────────────────────────────────────── */
 
 async function pickNextReviewee(
   admin: Awaited<ReturnType<typeof createServiceRoleClient>>,
   sessionId: string,
   reviewerId: string,
-  candidateIds: string[],
+  assignedIds: string[],
 ): Promise<string | null> {
-  if (candidateIds.length === 0) return null;
+  if (assignedIds.length === 0) return null;
 
   const { data: done } = await admin
     .from('peer_review_submissions')
@@ -376,7 +348,7 @@ async function pickNextReviewee(
     (done ?? []).map((d) => (d as { reviewee_id: string }).reviewee_id),
   );
 
-  const remaining = candidateIds.filter((id) => !doneSet.has(id));
+  const remaining = assignedIds.filter((id) => !doneSet.has(id));
   if (remaining.length === 0) return null;
   remaining.sort();
   return remaining[0] ?? null;

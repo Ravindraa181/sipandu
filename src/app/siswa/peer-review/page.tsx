@@ -22,7 +22,6 @@ import { createClient } from '@/lib/supabase/server';
 import { createServiceRoleClient } from '@/lib/supabase/server';
 import { getStudentContext } from '@/lib/student/getStudentContext';
 import { getPeerReviewAspects } from '@/lib/peer-review/getAspects';
-import { deterministicShuffle } from '@/lib/student/shuffle';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { ROUTES } from '@/constants';
 import { formatDate } from '@/lib/utils/format';
@@ -57,23 +56,23 @@ async function loadData() {
 
   const sessionId = session.id as string;
 
-  // ── 2. Ambil teman sekelas via service role (bypass RLS) ────────
-  // ALASAN: RLS policy enroll_select_self_teacher_admin hanya return
-  // baris milik siswa sendiri sehingga list teman selalu kosong.
-  const { data: classmatesData } = await admin
-    .from('student_class_enrollments')
-    .select('student_id, student:profiles(full_name)')
-    .eq('class_period_assignment_id', ctx.assignmentId)
-    .eq('status', 'active');
+  // ── 2. Ambil reviewee yang DITUGASKAN ke siswa ini (dari assignments)
+  // ALASAN: v2 — bukan lagi semua teman sekelas, tapi hanya 5 yang di-assign.
+  // Service role diperlukan karena RLS peer_review_assignments hanya izinkan
+  // siswa baca assignment miliknya sendiri — tapi join ke profiles butuh bypass.
+  const { data: assignedData } = await admin
+    .from('peer_review_assignments' as any)
+    .select('reviewee_id, profiles!reviewee_id(full_name)')
+    .eq('session_id', sessionId)
+    .eq('reviewer_id', ctx.studentId);
 
-  const rawClassmates = (classmatesData ?? [])
-    .map((c: any) => ({
-      id: c.student_id as string,
-      fullName: (c.student?.full_name as string) ?? 'Unknown',
-    }))
-    .filter((c) => c.id !== ctx.studentId); // exclude diri sendiri
+  type AssignRow = { reviewee_id: string; profiles: { full_name: string } };
+  const assignedReviewees = ((assignedData ?? []) as unknown as AssignRow[]).map((a) => ({
+    id: a.reviewee_id,
+    fullName: a.profiles?.full_name ?? 'Unknown',
+  }));
 
-  const totalReviewees = rawClassmates.length;
+  const totalReviewees = assignedReviewees.length;
 
   // ── 3. Cek progres siswa ini ────────────────────────────────────
   const { data: progressData } = await supabase
@@ -92,14 +91,7 @@ async function loadData() {
     };
   }
 
-  // ── 4. Shuffle deterministik + submissions yang sudah ada ───────
-  const shuffledReviewees = deterministicShuffle(
-    rawClassmates,
-    `${sessionId}-${ctx.studentId}`,
-  );
-
-  // ALASAN: service role diperlukan — RLS tidak punya SELECT policy untuk siswa
-  // di peer_review_submissions (demi anonimitas). Ini sisi server, aman.
+  // ── 4. Submissions yang sudah ada ──────────────────────────────
   const { data: submissions } = await admin
     .from('peer_review_submissions')
     .select(
@@ -110,7 +102,6 @@ async function loadData() {
 
   const initialSubmittedIds = (submissions ?? []).map((s) => s.reviewee_id as string);
 
-  /** Skor yang sudah pernah dikirim, untuk pre-fill saat mode edit. */
   type SubRow = {
     reviewee_id: string;
     score_courtesy: number;
@@ -136,7 +127,6 @@ async function loadData() {
     daysRemaining = Math.max(0, Math.ceil(ms / (1000 * 60 * 60 * 24)));
   }
 
-  // Label & deskripsi 5 aspek (dapat dikonfigurasi admin; fallback konstanta).
   const aspects = await getPeerReviewAspects();
 
   return {
@@ -146,7 +136,7 @@ async function loadData() {
     periodLabel: ctx.periodLabel,
     deadline: session.deadline as string | null,
     daysRemaining,
-    reviewees: shuffledReviewees,
+    reviewees: assignedReviewees,
     initialSubmittedIds,
     initialSubmittedScores,
     aspects,

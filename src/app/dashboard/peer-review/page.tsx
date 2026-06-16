@@ -251,8 +251,9 @@ export default async function TeacherPeerReviewPage() {
 
           <p className="mt-3 flex items-start gap-1.5 text-xs text-muted-foreground">
             <Info className="mt-0.5 h-3 w-3 flex-shrink-0" aria-hidden />
-            Setelah dibuka, siswa dapat mengisi penilaian teman di portal
-            masing-masing.
+            Sistem akan menugaskan <strong>5 teman secara acak</strong> kepada
+            setiap siswa. Siswa hanya menilai 5 teman yang ditugaskan, bukan
+            seluruh kelas.
           </p>
         </div>
       )}
