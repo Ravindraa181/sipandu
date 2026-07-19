@@ -259,12 +259,20 @@ const config: Config = {
           from: { transform: 'translateY(8px)', opacity: '0' },
           to: { transform: 'translateY(0)', opacity: '1' },
         },
+        /* Reveal lencana (badge) saat baru diraih — dipakai di
+         * BadgeUnlockCelebration setelah submission peer review terakhir. */
+        'badge-pop': {
+          '0%': { transform: 'scale(0.4) rotate(-12deg)', opacity: '0' },
+          '60%': { transform: 'scale(1.12) rotate(4deg)', opacity: '1' },
+          '100%': { transform: 'scale(1) rotate(0deg)', opacity: '1' },
+        },
       },
       animation: {
         'accordion-down': 'accordion-down 0.18s ease-out',
         'accordion-up': 'accordion-up 0.18s ease-out',
         'fade-in': 'fade-in 0.2s ease-out',
         'slide-in-up': 'slide-in-up 0.25s ease-out',
+        'badge-pop': 'badge-pop 0.55s cubic-bezier(0.34, 1.56, 0.64, 1)',
       },
 
       /* ────────────────────────────────────────────────────────────

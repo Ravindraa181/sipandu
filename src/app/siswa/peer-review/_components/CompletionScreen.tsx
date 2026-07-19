@@ -2,12 +2,18 @@
  * @file siswa/peer-review/_components/CompletionScreen.tsx
  * @description Screen sukses ketika siswa sudah menilai semua teman.
  *              Server Component murni.
+ *
+ *  Ini adalah tampilan PASIF (saat siswa membuka ulang halaman): lencana
+ *  "Penilai Aktif" ditampilkan statis tanpa animasi. Animasi perayaan
+ *  hanya muncul sekali pada momen submission terakhir — lihat
+ *  BadgeUnlockCelebration yang dipicu dari PeerReviewForm.
  */
 
 import Link from 'next/link';
 import { CircleCheck, Home } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
+import { AchievementBadge } from '@/components/shared/AchievementBadge';
 import { ROUTES } from '@/constants';
 
 export interface CompletionScreenProps {
@@ -28,9 +34,17 @@ export function CompletionScreen({ totalReviewees }: CompletionScreenProps) {
         Anda telah menilai semua <strong>{totalReviewees}</strong> teman
         sekelas.
       </p>
-      <p className="mb-6 text-xs text-muted-foreground">
+      <p className="mb-5 text-xs text-muted-foreground">
         Terima kasih atas partisipasi jujur Anda dalam Peer Review.
       </p>
+
+      {/* Showcase pasif lencana partisipasi yang sudah diraih */}
+      <div className="mx-auto mb-6 w-fit rounded-md bg-amber-50/70 px-4 py-3">
+        <p className="mb-2 text-2xs font-bold uppercase tracking-wide text-amber-700">
+          Lencana yang kamu raih
+        </p>
+        <AchievementBadge id="penilai_aktif" size="md" />
+      </div>
 
       <Button
         asChild

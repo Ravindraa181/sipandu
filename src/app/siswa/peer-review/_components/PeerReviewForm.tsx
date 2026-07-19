@@ -15,7 +15,10 @@
  *     pindah ke teman selanjutnya yang belum dinilai
  *   - Mode Edit: Klik "Ubah" di daftar teman yang sudah dinilai →
  *     pre-fill skor lama → tombol ganti menjadi "Perbarui Nilai"
- *   - Saat semua selesai → tampilkan completion screen (di-handle oleh page)
+ *   - Saat submission TERAKHIR berhasil → tampilkan BadgeUnlockCelebration
+ *     (umpan balik langsung lencana "Penilai Aktif"). Pemicu ini lokal dan
+ *     hanya terjadi tepat sekali pada momen tersebut; membuka ulang halaman
+ *     menampilkan CompletionScreen dari server, bukan animasi ini.
  *   - Akordion daftar teman dengan jump-to per teman
  *
  *  Catatan desain: fitur draft dihapus karena nilai sudah bisa dikoreksi
@@ -23,7 +26,6 @@
  */
 
 import { useMemo, useState, useTransition } from 'react';
-import { useRouter } from 'next/navigation';
 import {
   AlertCircle,
   ChevronUp,
@@ -40,6 +42,7 @@ import { cn } from '@/lib/utils/cn';
 import { PEER_REVIEW_ASPECTS } from '@/constants';
 import { submitPeerReviewRating } from '@/lib/actions/student';
 import { AspectRatingButtons } from './AspectRatingButtons';
+import { BadgeUnlockCelebration } from './BadgeUnlockCelebration';
 
 export interface PeerReviewFormProps {
   sessionId: string;
@@ -73,7 +76,6 @@ export function PeerReviewForm({
   initialSubmittedScores = {},
   aspects = PEER_REVIEW_ASPECTS,
 }: PeerReviewFormProps) {
-  const router = useRouter();
   const totalReviewees = reviewees.length;
 
   // ── State utama ──────────────────────────────────────────────────
@@ -99,6 +101,13 @@ export function PeerReviewForm({
   const [currentIndex, setCurrentIndex] = useState<number>(initialIndex);
   const [showError, setShowError] = useState(false);
   const [submitPending, startSubmitTransition] = useTransition();
+
+  /**
+   * true HANYA setelah submission terakhir berhasil pada sesi ini.
+   * Sengaja tidak diturunkan dari props/initial state agar animasi lencana
+   * tidak terpicu ulang setiap kali halaman dibuka.
+   */
+  const [justEarnedBadge, setJustEarnedBadge] = useState(false);
 
   const currentReviewee = reviewees[currentIndex];
   const currentScores =
@@ -188,8 +197,15 @@ export function PeerReviewForm({
         const nextIdx = reviewees.findIndex((r) => r.id === nextId);
         if (nextIdx !== -1) setCurrentIndex(nextIdx);
       } else {
-        // Semua selesai — refresh agar page menampilkan completion screen
-        router.refresh();
+        // Submission TERAKHIR — tampilkan umpan balik langsung lencana
+        // "Penilai Aktif" sebelum siswa kembali ke dashboard.
+        //
+        // Sengaja TIDAK memanggil router.refresh() di sini: refresh akan
+        // membuat page merender CompletionScreen dan meng-unmount form ini,
+        // sehingga animasi lencana hilang sebelum sempat terlihat. Data
+        // server tetap segar saat siswa menavigasi ke dashboard/halaman ini
+        // berikutnya.
+        setJustEarnedBadge(true);
       }
     });
   }
@@ -204,6 +220,11 @@ export function PeerReviewForm({
       ? currentScores.reduce((a, b) => a + b, 0) / 5
       : null;
   const previewScore100 = previewAvg !== null ? previewAvg * 20 : null;
+
+  // Umpan balik langsung: hanya dirender tepat setelah submission terakhir.
+  if (justEarnedBadge) {
+    return <BadgeUnlockCelebration totalReviewees={totalReviewees} />;
+  }
 
   if (!currentReviewee) {
     return (

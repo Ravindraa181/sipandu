@@ -7,6 +7,7 @@
  *   - Conditional banner peer review (saat sesi aktif & belum 100% selesai)
  *   - Card besar Penilaian Perilaku (4 tile X1/X2/X3/Z* + kategori +
  *     interpretasi naratif positif)
+ *   - Showcase lencana (badge) yang diraih pada periode berjalan
  *   - 2 kolom: Kehadiran bulanan + Histori Z* SVG bar chart
  */
 
@@ -14,6 +15,9 @@ import { redirect } from 'next/navigation';
 
 import { createClient } from '@/lib/supabase/server';
 import { getStudentContext } from '@/lib/student/getStudentContext';
+import { computeStudentBadges } from '@/lib/badges/computeStudentBadges';
+import { BadgeShowcase } from '@/components/shared/AchievementBadge';
+import type { BadgeId } from '@/lib/badges/definitions';
 import { ROUTES } from '@/constants';
 import type { CategoryType } from '@/types';
 import { PeerReviewBanner } from './_components/PeerReviewBanner';
@@ -51,6 +55,8 @@ interface DashboardData {
   lockedMonthCount: number;
   // Histori
   history: HistoryItem[];
+  // Lencana periode berjalan
+  badges: BadgeId[];
 }
 
 async function loadDashboard(): Promise<DashboardData> {
@@ -174,6 +180,10 @@ async function loadDashboard(): Promise<DashboardData> {
     .sort((a, b) => (a.startDate > b.startDate ? 1 : -1))
     .map(({ label, zScore, category }) => ({ label, zScore, category }));
 
+  // ── 4. Lencana yang diraih pada periode berjalan ────────────────
+  // Computed on the fly dari Z*, transaksi reward, & progres peer review.
+  const badges = await computeStudentBadges(ctx.studentId, ctx.periodId);
+
   return {
     studentFirstName: ctx.studentName.split(/\s+/)[0] ?? ctx.studentName,
     className: ctx.className,
@@ -191,6 +201,7 @@ async function loadDashboard(): Promise<DashboardData> {
     semesterX1,
     lockedMonthCount: lockedMonths.length,
     history,
+    badges,
   };
 }
 
@@ -228,6 +239,26 @@ export default async function StudentDashboardPage() {
         zScore={data.zScore}
         category={data.category}
       />
+
+      {/* Showcase lencana periode berjalan */}
+      <div className="rounded-md border border-sipandu-border bg-white p-3.5">
+        <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-1">
+          <h2 className="text-base font-bold text-foreground">
+            Lencana saya{' '}
+            <span className="text-lg" aria-hidden>
+              🏅
+            </span>
+          </h2>
+          <span className="text-xs text-muted-foreground">
+            Semester {data.periodLabel} · {data.badges.length} lencana
+          </span>
+        </div>
+
+        <BadgeShowcase
+          earned={data.badges}
+          emptyText="Belum ada lencana pada periode ini. Terus jaga kehadiran, aktif berkegiatan, dan lengkapi penilaian teman untuk meraih lencana pertamamu!"
+        />
+      </div>
 
       {/* Bottom: kehadiran + histori */}
       <div className="grid grid-cols-1 gap-3.5 lg:grid-cols-2">

@@ -22,6 +22,9 @@ import { getStudentContext } from '@/lib/student/getStudentContext';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { CategoryBadge } from '@/components/shared/CategoryBadge';
 import { getAspectLabelMap } from '@/lib/peer-review/getAspects';
+import { computeStudentBadgesByPeriod } from '@/lib/badges/computeStudentBadges';
+import { BadgeShowcase } from '@/components/shared/AchievementBadge';
+import type { BadgeId } from '@/lib/badges/definitions';
 import {
   MIN_ATTENDANCE_PERCENT,
   MONTHS,
@@ -78,6 +81,13 @@ interface AspectAggregate {
   percent: number;
 }
 
+/** Lencana kelompok "hasil perilaku" (badge 1-6) untuk satu periode. */
+interface PeriodBadgeRow {
+  periodId: string;
+  periodLabel: string;
+  earned: BadgeId[];
+}
+
 interface PageData {
   studentName: string;
   className: string;
@@ -96,6 +106,8 @@ interface PageData {
   reviewerCount: number;
   peerSessionStatus: 'not_started' | 'active' | 'closed' | null;
   aspectAggregates: AspectAggregate[];
+  /** Badge 1-6 per periode, terbaru di atas. */
+  badgesByPeriod: PeriodBadgeRow[];
 }
 
 const ASPECT_KEYS: PeerReviewAspectKey[] = [
@@ -204,6 +216,21 @@ async function loadData(searchParams: SearchParams): Promise<PageData> {
   const selectedMeta = periodMeta.get(selectedPeriodId);
   const selectedPeriodLabel = selectedMeta?.name ?? ctx.periodLabel;
 
+  // ── 1b. Lencana per periode (ketujuh badge, konsisten dengan Dashboard) ─
+  // Computed on the fly. Sengaja menampilkan seluruh 7 badge (bukan hanya
+  // 1-6) agar tampilan Riwayat konsisten dengan Dashboard dan tidak
+  // membingungkan siswa.
+  const badgesByPeriod: PeriodBadgeRow[] = (
+    await computeStudentBadgesByPeriod(ctx.studentId)
+  )
+    .slice()
+    .sort((a, b) => (a.startDate < b.startDate ? 1 : -1))
+    .map((p) => ({
+      periodId: p.periodId,
+      periodLabel: p.periodLabel,
+      earned: p.earned,
+    }));
+
   if (!selectedEnroll) {
     return {
       studentName: ctx.studentName,
@@ -223,6 +250,7 @@ async function loadData(searchParams: SearchParams): Promise<PageData> {
       reviewerCount: 0,
       peerSessionStatus: null,
       aspectAggregates: [],
+      badgesByPeriod,
     };
   }
 
@@ -449,6 +477,7 @@ async function loadData(searchParams: SearchParams): Promise<PageData> {
     reviewerCount,
     peerSessionStatus,
     aspectAggregates,
+    badgesByPeriod,
   };
 }
 
@@ -888,6 +917,44 @@ export default async function StudentRiwayatPage({
           />
         }
       />
+
+      {/* Lencana yang diraih di setiap periode (sejalan riwayat Z*) */}
+      <div className="rounded-md border border-sipandu-border bg-white p-3.5">
+        <h2 className="mb-2.5 text-base font-bold text-foreground">
+          Lencana per periode{' '}
+          <span className="text-lg" aria-hidden>
+            🏅
+          </span>
+        </h2>
+
+        {data.badgesByPeriod.length === 0 ? (
+          <p className="rounded-md bg-gray-50 px-3 py-2.5 text-xs italic text-muted-foreground">
+            Belum ada periode penilaian yang tercatat.
+          </p>
+        ) : (
+          <div className="space-y-2.5">
+            {data.badgesByPeriod.map((p) => (
+              <div
+                key={p.periodId}
+                className={cn(
+                  'rounded-md border border-sipandu-border p-2.5',
+                  p.periodId === data.selectedPeriodId && 'bg-blue-50/60',
+                )}
+              >
+                <div className="mb-1.5 flex flex-wrap items-baseline gap-2">
+                  <span className="text-sm font-semibold text-foreground">
+                    {p.periodLabel}
+                  </span>
+                  <span className="text-2xs text-muted-foreground">
+                    {p.earned.length} lencana
+                  </span>
+                </div>
+                <BadgeShowcase earned={p.earned} size="sm" />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       <RiwayatTabs
         kehadiranContent={kehadiranContent}
