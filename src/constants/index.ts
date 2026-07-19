@@ -153,51 +153,60 @@ export interface PeerReviewAspectDef {
   dbColumn: string;
 }
 
-/** 5 aspek penilaian peer review SiPandu. */
+/**
+ * 5 aspek penilaian peer review SiPandu.
+ *
+ * Label & deskripsi mengacu pada dimensi Profil Lulusan pada
+ * Permendikdasmen No. 10 Tahun 2025 (Standar Kompetensi Lulusan).
+ * `key` & `dbColumn` TETAP (terikat ke kolom skor & trigger X3) — hanya
+ * label/deskripsi yang berubah. Digunakan sebagai fallback bila tabel
+ * `peer_review_aspects` kosong; sumber utama tetap dari DB.
+ */
 export const PEER_REVIEW_ASPECTS: readonly PeerReviewAspectDef[] = [
   {
     key: 'courtesy',
-    label: 'Kesantunan & Sopan Santun',
+    label: 'Akhlak Mulia',
     description:
-      'Seberapa sopan siswa ini dalam berbicara dan bersikap kepada guru dan teman-teman?',
+      'Seberapa jujur dan baik sikap siswa ini dalam berkata dan bertindak kepada guru maupun teman-teman?',
     dbColumn: 'score_courtesy',
   },
   {
     key: 'cooperation',
-    label: 'Gotong Royong & Kerja Sama',
+    label: 'Kewargaan',
     description:
-      'Seberapa aktif siswa ini dalam kerja kelompok dan membantu teman yang kesulitan?',
+      'Seberapa taat siswa ini terhadap aturan sekolah dan bertanggung jawab menjaga nama baik kelas maupun sekolah?',
     dbColumn: 'score_cooperation',
   },
   {
     key: 'empathy',
-    label: 'Empati & Kepedulian',
+    label: 'Kolaborasi',
     description:
-      'Seberapa peka siswa ini terhadap perasaan dan kondisi teman di sekitarnya?',
+      'Seberapa aktif siswa ini peduli, berbagi, dan bekerja sama dengan teman-teman dalam kegiatan bersama?',
     dbColumn: 'score_empathy',
   },
   {
     key: 'honesty',
-    label: 'Kejujuran',
-    description: 'Seberapa jujur siswa ini dalam kegiatan belajar sehari-hari?',
+    label: 'Kemandirian',
+    description:
+      'Seberapa bertanggung jawab dan berinisiatif siswa ini dalam menyelesaikan tugas dan kewajibannya sendiri?',
     dbColumn: 'score_honesty',
   },
   {
     key: 'responsibility',
-    label: 'Tanggung Jawab',
+    label: 'Komunikasi',
     description:
-      'Seberapa bertanggung jawab siswa ini dengan tugas, kewajiban, dan janjinya?',
+      'Seberapa sopan siswa ini saat berbicara atau menyampaikan pendapat kepada teman-teman?',
     dbColumn: 'score_responsibility',
   },
 ] as const;
 
-/** Map cepat key → label. */
+/** Map cepat key → label (dimensi Permendikdasmen No. 10 Tahun 2025). */
 export const ASPECT_LABELS: Readonly<Record<PeerReviewAspectKey, string>> = {
-  courtesy: 'Kesantunan',
-  cooperation: 'Gotong Royong',
-  empathy: 'Empati',
-  honesty: 'Kejujuran',
-  responsibility: 'Tanggung Jawab',
+  courtesy: 'Akhlak Mulia',
+  cooperation: 'Kewargaan',
+  empathy: 'Kolaborasi',
+  honesty: 'Kemandirian',
+  responsibility: 'Komunikasi',
 } as const;
 
 /** 5 label tampil skala 1-5 (untuk button rating di S2). */

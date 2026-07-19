@@ -112,7 +112,7 @@ function AspectCard({ index, aspect }: { index: number; aspect: AspectItem }) {
             value={label}
             maxLength={100}
             onChange={(e) => setLabel(e.target.value)}
-            placeholder="Mis. Kesantunan & Sopan Santun"
+            placeholder="Mis. Akhlak Mulia"
           />
         </div>
 

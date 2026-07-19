@@ -61,17 +61,18 @@ CREATE POLICY aspects_admin_write ON public.peer_review_aspects
   FOR ALL USING (public.is_admin()) WITH CHECK (public.is_admin());
 
 -- ── 4. Seed 5 aspek default (sama dengan konstanta PEER_REVIEW_ASPECTS) ──────
+-- Dimensi Profil Lulusan — Permendikdasmen No. 10 Tahun 2025 (SKL).
 INSERT INTO public.peer_review_aspects (aspect_key, label, description, display_order) VALUES
-  ('courtesy',       'Kesantunan & Sopan Santun',
-   'Seberapa sopan siswa ini dalam berbicara dan bersikap kepada guru dan teman-teman?', 1),
-  ('cooperation',    'Gotong Royong & Kerja Sama',
-   'Seberapa aktif siswa ini dalam kerja kelompok dan membantu teman yang kesulitan?', 2),
-  ('empathy',        'Empati & Kepedulian',
-   'Seberapa peka siswa ini terhadap perasaan dan kondisi teman di sekitarnya?', 3),
-  ('honesty',        'Kejujuran',
-   'Seberapa jujur siswa ini dalam kegiatan belajar sehari-hari?', 4),
-  ('responsibility', 'Tanggung Jawab',
-   'Seberapa bertanggung jawab siswa ini dengan tugas, kewajiban, dan janjinya?', 5)
+  ('courtesy',       'Akhlak Mulia',
+   'Seberapa jujur dan baik sikap siswa ini dalam berkata dan bertindak kepada guru maupun teman-teman?', 1),
+  ('cooperation',    'Kewargaan',
+   'Seberapa taat siswa ini terhadap aturan sekolah dan bertanggung jawab menjaga nama baik kelas maupun sekolah?', 2),
+  ('empathy',        'Kolaborasi',
+   'Seberapa aktif siswa ini peduli, berbagi, dan bekerja sama dengan teman-teman dalam kegiatan bersama?', 3),
+  ('honesty',        'Kemandirian',
+   'Seberapa bertanggung jawab dan berinisiatif siswa ini dalam menyelesaikan tugas dan kewajibannya sendiri?', 4),
+  ('responsibility', 'Komunikasi',
+   'Seberapa sopan siswa ini saat berbicara atau menyampaikan pendapat kepada teman-teman?', 5)
 ON CONFLICT (aspect_key) DO NOTHING;  -- jangan timpa edit admin saat re-run
 
 -- ── Verifikasi ───────────────────────────────────────────────────────────────

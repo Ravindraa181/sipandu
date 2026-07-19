@@ -165,13 +165,17 @@ export interface StudentRunningScore {
  *  5. View-model peer review (X3)
  * ──────────────────────────────────────────────────────────────────── */
 
-/** 5 aspek penilaian peer review (skala 1-5). */
+/**
+ * 5 aspek penilaian peer review (skala 1-5).
+ * Key kolom TETAP; label tampil mengikuti dimensi Permendikdasmen
+ * No. 10 Tahun 2025 (lihat ASPECT_LABELS di constants).
+ */
 export interface PeerReviewAspects {
-  courtesy: number;        // Kesantunan
-  cooperation: number;     // Gotong royong / kerja sama
-  empathy: number;         // Empati
-  honesty: number;         // Kejujuran
-  responsibility: number;  // Tanggung jawab
+  courtesy: number;        // Akhlak Mulia
+  cooperation: number;     // Kewargaan
+  empathy: number;         // Kolaborasi
+  honesty: number;         // Kemandirian
+  responsibility: number;  // Komunikasi
 }
 
 /** Progress reviewer (siswa) dalam mengisi peer review. */
